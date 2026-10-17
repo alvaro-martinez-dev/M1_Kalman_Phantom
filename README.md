@@ -14,6 +14,22 @@ measurement noise and multiple scattering.
 ```bash
 git clone https://github.com/your-username/repo-name.git
 cd repo-name
+```
+
+### (A.1) You work with anaconda/miniforge:
+```bash
+conda env create -f environment.yml
+conda activate env_py312_kalman
+```
+
+### (A.2) You work with miniforge (faster installation):
+```bash
+mamba env create -f environment.yml
+mamba activate env_py312_kalman
+```
+
+### (B) You work with pip: (not yet created)
+```bash
 pip install -r requirements.txt
 ```
 

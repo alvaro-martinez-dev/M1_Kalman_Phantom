@@ -1,0 +1,9 @@
+name: env_py312_kalman
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12
+  - numpy>=2.3
+  - scipy>=1.16
+  - matplotlib>=3.10
+  - jupyter
