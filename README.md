@@ -28,7 +28,7 @@ mamba env create -f environment.yml
 mamba activate env_py312_kalman
 ```
 
-### (B) You work with pip: (not yet created)
+### (B) You work with pip: 
 ```bash
 pip install -r requirements.txt
 ```
