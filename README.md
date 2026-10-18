@@ -1,6 +1,6 @@
 # Track Fitting with a Kalman Filter
 
-Numerical physics project (PHY_51171_EP, École Polytechnique).
+Numerical physics project (PHY_51171_EP).
 Authors: Alvaro Martinez, Yared Flores
 
 ## Description
