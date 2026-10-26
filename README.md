@@ -13,7 +13,7 @@ measurement noise and multiple scattering.
 
 ```bash
 git clone https://github.com/alvaro-martinez-dev/M1_Kalman_Phantom.git
-cd repo-name
+cd M1_Kalman_Phantom
 ```
 
 ### (A.1) You work with anaconda/miniforge:
