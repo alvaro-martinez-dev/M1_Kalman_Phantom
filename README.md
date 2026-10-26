@@ -12,7 +12,7 @@ measurement noise and multiple scattering.
 ## Installation
 
 ```bash
-git clone https://github.com/your-username/repo-name.git
+git clone https://github.com/alvaro-martinez-dev/M1_Kalman_Phantom.git
 cd repo-name
 ```
 
