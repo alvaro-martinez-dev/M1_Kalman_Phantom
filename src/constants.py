@@ -94,3 +94,4 @@ class Material:
     X0: float         # radiation length, mm
 
 WATER = Material("water", 1.0, 0.55509, 75e-6, 360.8)
+BONE = Material("bone", 1.85, 0.514, 91.9e-6, 106.0)
