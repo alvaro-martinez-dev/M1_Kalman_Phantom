@@ -1,0 +1,59 @@
+# parameter config yaml
+# With this yaml file we avoid hardcoding the model's parameters
+
+# Units: MeV, mm, rad
+
+# ----------------------------------------------
+# ------------------- Run ----------------------
+# ----------------------------------------------
+
+run:
+  seed: 42
+  n_events: 100000
+  beam: jpsi                  # which block of beams: to simulate
+
+# ----------------------------------------------
+# ------------------ Beams ---------------------
+# ----------------------------------------------
+
+beams:
+  proton:
+    particle: PROTON          # name of the constant in src/constants.py
+    x0: 0.0
+    sigma_x0: 1.0
+    theta0: 0.0
+    sigma_theta0: 1.0e-3
+    p0: 700.0
+    sigma_p0: 3.0
+
+  jpsi:
+    particle: JPSI
+    decay: JPSI_MUMU          # DecayChannel in src/constants.py
+    x0: 0.0
+    sigma_x0: 1.0
+    theta0: 0.0
+    sigma_theta0: 1.0e-3
+    p0: 5000.0
+    sigma_p0: 50.0
+
+  pion:
+    particle: PI_PLUS
+    decay: PI_PLUS_MUNU
+    x0: 0.0
+    sigma_x0: 1.0
+    theta0: 0.0
+    sigma_theta0: 1.0e-3
+    p0: 200.0
+    sigma_p0: 2.0
+
+# ----------------------------------------------
+# ----------------- Geometry -------------------
+# ----------------------------------------------
+
+geometry: {}                  # detector planes, materials, resolution
+
+# ----------------------------------------------
+# ------------------ Kalman --------------------
+# ----------------------------------------------
+
+kalman: {}                    # fit options
