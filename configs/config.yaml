@@ -10,7 +10,7 @@
 run:
   seed: 42
   n_events: 100000
-  beam: jpsi                  # which block of beams: to simulate
+  beam: jpsi                  # which block of beams to simulate
 
 # ----------------------------------------------
 # ------------------ Beams ---------------------
