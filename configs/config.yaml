@@ -57,3 +57,21 @@ geometry: {}                  # detector planes, materials, resolution
 # ----------------------------------------------
 
 kalman: {}                    # fit options
+
+# ----------------------------------------------
+# ----------------- Field ----------------------
+# ----------------------------------------------
+
+Magnet:
+  z_start: 400.0    # z position of the start of the magnet
+  length: 300.0     # length of the magnet
+  half_gap: 50.0     # plates in +- 50.0 mm
+  B0: 1.0          # [T] magnetic field strength
+  model: biot_savart  # model of the magnetic field: biot_savart/hard_edge
+  biotsavart:
+    n_filaments: 20
+  interpolation:
+    enable: true
+    dx: 1.0
+    dz: 2.0
+    margin: 100.0
