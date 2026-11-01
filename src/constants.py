@@ -104,6 +104,6 @@ alpha = 1.0 / 137.035999084
 e_charge = np.sqrt(4 * np.pi * alpha)
 
 
-hbarc = 1.97326980e-13      # ħc [GeV·mm]
-tesla = 1.95353e-16        # 1 T = 195.35 eV² [GeV²]
-k = e_charge / hbarc          # e/ħc [GeV⁻¹·mm⁻¹]
+hbarc = 1.97326980e-10      # ħc [MeV·mm]
+tesla = 1.95353e-10        # 1 T = 195.35 eV² [MeV²]
+k = e_charge / hbarc          # e/ħc [MeV⁻¹·mm⁻¹]
