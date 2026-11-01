@@ -1,6 +1,6 @@
 """Abstract interface for all magnetic field models.
 
-Units: positions in mm, field in GeV^2 (natural units, see constants.py).
+Units: positions in mm, field in MeV^2 (natural units, see constants.py).
 """
 from abc import ABC, abstractmethod
 import numpy as np

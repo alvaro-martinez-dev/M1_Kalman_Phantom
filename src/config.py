@@ -1,3 +1,5 @@
+#here we upload the yalm file and we convert the B0 in tesla to B0_nat in T
+
 from pathlib import Path
 import yaml
 from .constants import tesla
