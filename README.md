@@ -52,7 +52,7 @@ Generates `run.n_events` tracks of the beam block `proton` of `configs/config.ya
 Options: `--config <name or path>`, `--beam <block>` (default: `run.beam`),
 `--name <folder>`, `--overwrite`, `--plot`/`--no-plot` (default: `run.plot`).
 
-To redo only the report of an existing dataset:
+To redo only the plot report of an existing dataset:
 
 ```bash
 python -m plotting.plot_init_beam init_beam/proton_n100000_seed42
@@ -65,7 +65,6 @@ from src.utils.dataset_io import load_dataset
 df, cfg = load_dataset("init_beam/proton_n100000_seed42")
 ```
 
-```
 
 ## Repository structure
 
@@ -74,7 +73,10 @@ src/        main code (geometry, simulation, Kalman filter)
 tests/      tests
 notebooks/  exploration and plots
 scripts/    scripts to reproduce the results
-report/     final report
+pdf_info/   pdfs with some project organisation/guides
+plotting/   plotting codes
+configs/    folder with the config files to be changed for different physical studies
+data/       data folder with datasets, metadata and revision plots
 ```
 
 ## Results
