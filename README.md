@@ -3,6 +3,9 @@
 Numerical physics project (PHY_51171_EP).
 Authors: Alvaro Martinez, Yared Flores, Andrea Cursano
 
+![Study concept](pdf_info/concept.png)
+
+
 ## Description
 
 We simulate charged particles traversing a multi-layer tracking detector

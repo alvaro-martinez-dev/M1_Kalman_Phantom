@@ -221,3 +221,6 @@ __marimo__/
 
 # VS Code (personal editor settings)
 .vscode/
+
+# macOS
+.DS_Store
