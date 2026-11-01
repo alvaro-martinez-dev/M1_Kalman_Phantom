@@ -47,9 +47,16 @@ Generates `run.n_events` tracks of the beam block `proton` of `configs/config.ya
 
 - `tracks.parquet`: one row per track (see `src/montecarlo/tracks.py`)
 - `metadata.yaml`: relevant information of the yaml used
+- `report.pdf`: validation plots of the dataset, if `run.plot` is `true`
 
 Options: `--config <name or path>`, `--beam <block>` (default: `run.beam`),
-`--name <folder>`, `--overwrite`.
+`--name <folder>`, `--overwrite`, `--plot`/`--no-plot` (default: `run.plot`).
+
+To redo only the report of an existing dataset:
+
+```bash
+python -m plotting.plot_init_beam init_beam/proton_n100000_seed42
+```
 
 To load it in a notebook:
 

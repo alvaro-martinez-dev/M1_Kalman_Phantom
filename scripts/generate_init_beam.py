@@ -6,12 +6,14 @@
 #   python -m scripts.generate_init_beam                      # uses configs/config.yaml and run.beam
 #   python -m scripts.generate_init_beam --beam proton
 #   python -m scripts.generate_init_beam --config my_config --beam pion --name pion_test --overwrite
+#   python -m scripts.generate_init_beam --no-plot            # skips the report of run.plot
 
 import argparse
 from pathlib import Path
 
+from plotting.plot_init_beam import REPORT_NAME, plot_init_beam
 from src.utils.config_loader import CONFIG_DIR, load_config, make_beam
-from src.utils.dataset_io import DATA_DIR, REPO_ROOT, save_dataset
+from src.utils.dataset_io import DATA_DIR, REPO_ROOT, load_dataset, save_dataset
 
 
 def main():
@@ -25,6 +27,8 @@ def main():
                         help="dataset folder name (default: <beam>_n<n_events>_seed<seed>)")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace the dataset folder if it already exists")
+    parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
+                        help=f"write {REPORT_NAME} in the dataset folder (default: run.plot of the yaml)")
     args = parser.parse_args()
 
     # 1. Config (same path resolution as load_config)
@@ -55,6 +59,15 @@ def main():
     out_dir = save_dataset(df, DATA_DIR / "init_beam" / name, params,
                            overwrite=args.overwrite)
     print(f"Saved {len(df)} tracks to {out_dir}")
+
+    # 4. Report (the dataset is already saved: a failure here does not lose it)
+    if run.get("plot", False) if args.plot is None else args.plot:
+        try:
+            report = plot_init_beam(*load_dataset(out_dir), out_dir / REPORT_NAME)
+            print(f"Saved report to {report}")
+        except Exception as error:
+            print(f"WARNING: report not generated ({error!r}). To retry:\n"
+                  f"  python -m plotting.plot_init_beam {out_dir}")
 
 
 if __name__ == "__main__":
