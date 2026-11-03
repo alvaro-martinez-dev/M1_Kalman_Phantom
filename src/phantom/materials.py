@@ -40,6 +40,27 @@ def beta_gamma(T_MeV, particle: Particle = PROTON):
     beta = np.sqrt(1.0 - 1.0 / gamma**2)
     return beta, gamma
 
+def density_effect(beta_gamma, material):
+    """
+    Sternheimer parameterization of the density-effect correction delta.
+
+    Returns delta (dimensionless). If the material has no Sternheimer
+    parameters (all None), returns 0 -- which is the correct limit at
+    low beta*gamma and the default for materials where it is negligible.
+
+    Reference: Sternheimer, Berger & Seltzer, Atomic Data and Nuclear
+    Data Tables 30 (1984) 261; PDG, Passage of particles through matter.
+    """
+    if material.x0 is None:
+        return 0.0
+    x = np.log10(beta_gamma)
+    if x < material.x0:
+        return 0.0
+    elif x < material.x1:
+        return (2.0 * np.log(10.0) * x - material.Cbar
+                + material.a * (material.x1 - x) ** material.k)
+    else:
+        return 2.0 * np.log(10.0) * x - material.Cbar
 
 def bethe_bloch(T_MeV, material: Material, particle: Particle = PROTON):
     """
@@ -92,8 +113,10 @@ def bethe_bloch(T_MeV, material: Material, particle: Particle = PROTON):
                 + (M_ELECTRON / M)**2))
     log_term = 0.5 * np.log(2.0 * M_ELECTRON * beta**2 * gamma**2
                             * T_max / material.I**2)
-    dEdx_cm = (K_BETHE * z**2 * material.Z_A * material.density
-               / beta**2 * (log_term - beta**2))
+    bg = beta * gamma
+    delta = density_effect(bg, material)
+    dEdx_cm = (K_BETHE * z**2 * material.Z_A * material.density / beta**2 * (log_term - beta**2 - 0.5 * delta))
+    
     return dEdx_cm * MEV_PER_CM_TO_MM
 
 

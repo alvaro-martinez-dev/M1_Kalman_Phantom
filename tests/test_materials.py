@@ -4,7 +4,7 @@ Units: energy MeV, length mm.
 """
 import numpy as np
 import pytest
-
+from src.phantom.materials import density_effect, beta_gamma
 from src.constants import (
     WATER, BONE, PROTON, MU_MINUS, ELECTRON, ALPHA,
 )
@@ -119,3 +119,22 @@ def test_highland_additivity():
     theta_step = highland_width(200.0, x, WATER, n_slices=n)
     combined = np.sqrt(n) * theta_step
     assert np.isclose(combined, theta_total, rtol=1e-12)
+
+
+def test_density_effect_zero_at_low_energy():
+    """At 200 MeV in water, beta*gamma < x0 -> delta = 0."""
+    beta, gamma = beta_gamma(200.0)
+    delta = density_effect(beta * gamma, WATER)
+    assert delta == 0.0
+
+
+def test_density_effect_positive_at_high_energy():
+    """For beta*gamma > x1, delta must be > 0 (high-energy limit)."""
+    delta = density_effect(1000.0, WATER)
+    assert delta > 0.0
+
+
+def test_bethe_bloch_unchanged_at_200_MeV_with_delta():
+    """At 200 MeV, delta = 0: dE/dx unchanged."""
+    dEdx = bethe_bloch(200.0, WATER)
+    assert 0.442 < dEdx < 0.451
