@@ -12,7 +12,7 @@ import numpy as np
 from .base import MagneticField
 
 
-def _segment_field(r, p1, p2):
+def _segment_field(r, p1, p2):  #implement Biot Savart law for a single segment
     """Biot-Savart field (mu0 = I = 1) of a straight segment p1 -> p2.
 
     Args:
@@ -54,21 +54,21 @@ class BiotSavartField(MagneticField):
     """
 
     def __init__(self, B0_nat, z_start, length, half_gap, height, n_filaments):
-        self.B0_nat = B0_nat
+        self.B0_nat = B0_nat                         #here we save the geometry
         self.z_start = z_start
         self.z_end = z_start + length
         self.half_gap = half_gap
         self.height = height
         self.n_filaments = n_filaments
 
-        self._loops = self._build_loops()
+        self._loops = self._build_loops()            #here we build the filaments loops, closed so div(B) = 0 by costruction
         z_centre = 0.5 * (self.z_start + self.z_end)
         by_unit = self._raw_By(np.array([0.0]), np.array([z_centre]))[0]
         if abs(by_unit) < 1e-300:
             raise ValueError("Unit field at centre is zero; check geometry.")
-        self._scale = self.B0_nat / by_unit
+        self._scale = self.B0_nat / by_unit          #scalar factor, that bc of the linear dependence on I of the magnetic field avoid us not to know I, we can just set a target B0
 
-    def _build_loops(self):
+    def _build_loops(self):                          #here we actually build the loop
         """Return the (p1, p2) segment pairs of every filament loop."""
         ys = np.linspace(-self.height / 2.0, self.height / 2.0, self.n_filaments)
         d = self.half_gap
@@ -86,8 +86,8 @@ class BiotSavartField(MagneticField):
                 segments.append((corners[i], corners[(i + 1) % 4]))
         return segments
 
-    def _raw_By(self, x, z):
-        """By from all loops with unit current (mu0 = I = 1), at y = 0."""
+    def _raw_By(self, x, z):                         
+        """we calculate total By with the principle of superposition from all loops with unit current (mu0 = I = 1), at y = 0."""
         x = np.asarray(x, dtype=float)
         z = np.asarray(z, dtype=float)
         x, z = np.broadcast_arrays(x, z)
@@ -96,7 +96,7 @@ class BiotSavartField(MagneticField):
         total = np.zeros(r.shape)
         for p1, p2 in self._loops:
             total += _segment_field(r, p1, p2)
-        return total[..., 1]
+        return total[..., 1]            #output is ONLY y component
 
     def B(self, x, y, z):
         """Return the field vector in natural units, shape (..., 3).
