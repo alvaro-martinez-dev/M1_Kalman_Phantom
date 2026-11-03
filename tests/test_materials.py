@@ -8,7 +8,7 @@ import pytest
 from src.constants import (
     WATER, BONE, PROTON, MU_MINUS, ELECTRON, ALPHA,
 )
-from src.materials import (
+from src.phantom.materials import (
     bethe_bloch, range_csda, highland_width, E_MIN_MEV,
 )
 

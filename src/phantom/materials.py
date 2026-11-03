@@ -177,3 +177,4 @@ def highland_width(T_MeV, thickness_mm, material: Material,
                    * np.sqrt(x_over_X0)
                    * (1.0 + 0.038 * np.log(x_over_X0)))
     return theta_total / np.sqrt(n_slices)
+
