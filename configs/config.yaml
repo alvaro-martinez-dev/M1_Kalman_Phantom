@@ -65,28 +65,43 @@ decays:
 # ----------------- Geometry -------------------
 # ----------------------------------------------
 
-geometry: {}                  # detector planes, materials, resolution
+geometry:
+  phantom:
+    z_start: 50.0             # [mm] entrance of the first layer
+    layers:                   # in beam order; material = Material in src/constants.py
+      - {material: WATER, thickness: 200.0}
+
+  magnet:
+    z_start: 400.0            # [mm] start of the magnet
+    length: 300.0             # [mm]
+    half_gap: 50.0            # [mm] plates at x = +-half_gap
+    height: 100               # [mm]
+    B0: 1.0                   # [T] converted to natural units when loaded
+    model: biot_savart        # biot_savart / hard_edge
+    biot_savart:
+      n_filaments: 20
+    interpolation:
+      enabled: true
+      dx: 1.0                 # [mm]
+      dz: 2.0                 # [mm]
+      margin: 100.0           # [mm]
+
+  detector_planes:
+    sigma_x: 0.1              # [mm] resolution of every plane
+    spacing_after_magnet: 100 # [mm]
+    placement: 
+              # n_planes will be equispaced
+              # immediately before and after the phantom/magnet there are detector planes.
+              # this numbers don't account for these already established detector planes.
+      n_before_phantom: 1 # (n_before_phantom + 1) detector planes
+      n_after_phantom_before_magnet: 1 # (n_after_phantom_before_magnet + 2) planes
+      n_after_magnet: 1 # (n_after_magnet + 1) planes
+      n_inside_phantom: 0
+      n_inside_magnet: 1
+
 
 # ----------------------------------------------
 # ------------------ Kalman --------------------
 # ----------------------------------------------
 
 kalman: {}                    # fit options
-
-# ----------------------------------------------
-# ----------------- Field ----------------------
-# ----------------------------------------------
-
-Magnet:
-  z_start: 400.0    # z position of the start of the magnet
-  length: 300.0     # length of the magnet
-  half_gap: 50.0     # plates in +- 50.0 mm
-  B0: 1.0          # [T] magnetic field strength
-  model: biot_savart  # model of the magnetic field: biot_savart/hard_edge
-  biotsavart:
-    n_filaments: 20
-  interpolation:
-    enable: true
-    dx: 1.0
-    dz: 2.0
-    margin: 100.0
