@@ -73,9 +73,9 @@ geometry:
 
   magnet:
     z_start: 400.0            # [mm] start of the magnet
-    length: 300.0             # [mm]
-    half_gap: 50.0            # [mm] plates at x = +-half_gap
-    height: 100               # [mm]
+    z_length: 300.0             # [mm]
+    x_half_gap: 50.0            # [mm] plates at x = +-half_gap
+    y_height: 100               # [mm] thickness of the magnet plates in the y axis
     B0: 1.0                   # [T] converted to natural units when loaded
     model: biot_savart        # biot_savart / hard_edge
     biot_savart:
