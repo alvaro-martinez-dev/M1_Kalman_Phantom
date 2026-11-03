@@ -17,10 +17,10 @@ def build_field(cfg: dict) -> MagneticField:
     """
     m = cfg["magnet"]
     if m["model"] == "hard_edge":
-        src = HardEdgeField(m["B0_nat"], m["z_start"], m["length"], m["half_gap"])
+        src = HardEdgeField(m["B0_nat"], m["z_start"], m["z_length"], m["x_half_gap"])
     elif m["model"] == "biot_savart":
-        src = BiotSavartField(m["B0_nat"], m["z_start"], m["length"],
-                              m["half_gap"], m["height"],
+        src = BiotSavartField(m["B0_nat"], m["z_start"], m["z_length"],
+                              m["x_half_gap"], m["y_height"],
                               m["biot_savart"]["n_filaments"])
     else:
         raise ValueError(f"Unknown field model: {m['model']}")
@@ -28,7 +28,7 @@ def build_field(cfg: dict) -> MagneticField:
     ip = m["interpolation"]
     if ip["enabled"]:
         return InterpolatedField.from_field(
-            src, m["z_start"], m["length"], m["half_gap"],
+            src, m["z_start"], m["z_length"], m["x_half_gap"],
             ip["margin"], ip["dx"], ip["dz"])
     return src
 
