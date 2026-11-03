@@ -92,8 +92,16 @@ class Material:
     Z_A: float        # <Z/A>
     I: float          # mean excitation energy, MeV
     X0: float         # radiation length, mm
+    # Sternheimer density-effect parameters (optional; None -> no correction) (the delta in Bethe Eq.)
+    x0: float | None = None
+    x1: float | None = None
+    Cbar: float | None = None
+    a: float | None = None
+    k: float | None = None
 
-WATER = Material("water", 1.0, 0.55509, 75e-6, 360.8)
+WATER = Material(
+    "water", 1.0, 0.55509, 75e-6, 360.8,
+    x0=0.2400, x1=2.800, Cbar=3.477, a=0.09116, k=3.477)
 BONE = Material("bone", 1.85, 0.514, 91.9e-6, 106.0)
 
 #---------------------------------------------------------------------------------------------
