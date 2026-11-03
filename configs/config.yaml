@@ -64,6 +64,8 @@ decays:
 # ----------------------------------------------
 # ----------------- Geometry -------------------
 # ----------------------------------------------
+# Note: Project supported for magnet after phantom, not inverted, not on spatial superposition
+# ----------------------------------------------
 
 geometry:
   phantom:
@@ -96,7 +98,8 @@ geometry:
       n_before_phantom: 1 # (n_before_phantom + 1) detector planes
       n_after_phantom_before_magnet: 1 # (n_after_phantom_before_magnet + 2) planes
       n_after_magnet: 1 # (n_after_magnet + 1) planes
-      n_inside_phantom: 0
+
+      inside_phantom: true # one plane at each internal interface (#interfaces - 2 planes)
       n_inside_magnet: 1
 
 
