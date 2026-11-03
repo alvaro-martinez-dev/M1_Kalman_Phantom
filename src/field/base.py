@@ -17,7 +17,7 @@ class MagneticField(ABC):
             x, y, z: positions in mm (scalars or broadcastable arrays).
 
         Returns:
-            Array of shape (..., 3) with the field in GeV^2.
+            Array of shape (..., 3) with the field in MeV^2.
         """
 
     def By(self, x, z):
