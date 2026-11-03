@@ -1,4 +1,4 @@
-#here we upload the yalm file and we convert the B0 in tesla to B0_nat in T
+#here we upload the yalm file and we convert the B0 in tesla to B0_nat in MeV^-2
 
 from pathlib import Path
 import yaml
