@@ -40,7 +40,7 @@ def get_constant(name):
 
 
 # beam_cfg: one block of beams.<name> in the yaml
-# Returns: Initial_Beam built from it (the "decay" key, if any, is ignored)
+# Returns: Initial_Beam built from it
 def make_beam(beam_cfg):
 
     return Initial_Beam(

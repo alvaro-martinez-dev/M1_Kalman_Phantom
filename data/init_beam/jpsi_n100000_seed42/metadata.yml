@@ -1,0 +1,17 @@
+created: '2026-11-03T15:42:35'
+git_commit: 79433840abf81f569cb0831cbd6b3b55d67c1198
+git_uncommitted_changes: true
+n_rows: 100000
+config_source: configs\config.yaml
+run:
+  beam: jpsi
+  n_events: 100000
+  seed: 42
+beam:
+  particle: JPSI
+  x0: 0.0
+  sigma_x0: 1.0
+  theta0: 0.0
+  sigma_theta0: 0.001
+  p0: 5000.0
+  sigma_p0: 50.0

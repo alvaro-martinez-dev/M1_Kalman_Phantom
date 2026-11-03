@@ -11,6 +11,7 @@ run:
   seed: 42
   n_events: 100000
   beam: jpsi                  # which block of beams to simulate
+  decay: jpsi_mumu            # which block of decays to simulate
   plot: true                  # write report.pdf in the dataset folder
 
 # ----------------------------------------------
@@ -29,7 +30,6 @@ beams:
 
   jpsi:
     particle: JPSI
-    decay: JPSI_MUMU          # DecayChannel in src/constants.py
     x0: 0.0
     sigma_x0: 1.0
     theta0: 0.0
@@ -39,13 +39,27 @@ beams:
 
   pion:
     particle: PI_PLUS
-    decay: PI_PLUS_MUNU
     x0: 0.0
     sigma_x0: 1.0
     theta0: 0.0
     sigma_theta0: 1.0e-3
     p0: 200.0
     sigma_p0: 2.0
+
+# ----------------------------------------------
+# ------------------ Decays --------------------
+# ----------------------------------------------
+
+decays:
+  jpsi_mumu:
+    channel: JPSI_MUMU                    # DecayChannel in src/constants.py
+    input: init_beam/jpsi_n100000_seed42  # parent dataset, relative to data/
+    seed: 43                              # must differ from the seed of the parent dataset
+
+  pion_munu:
+    channel: PI_PLUS_MUNU
+    input: init_beam/pion_n100000_seed42
+    seed: 44
 
 # ----------------------------------------------
 # ----------------- Geometry -------------------
