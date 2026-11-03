@@ -53,12 +53,12 @@ class BiotSavartField(MagneticField):
         n_filaments: number of wires used to discretise each plate.
     """
 
-    def __init__(self, B0_nat, z_start, length, half_gap, height, n_filaments):
+    def __init__(self, B0_nat, z_start, z_length, x_half_gap, y_height, n_filaments):
         self.B0_nat = B0_nat                         #here we save the geometry
         self.z_start = z_start
-        self.z_end = z_start + length
-        self.half_gap = half_gap
-        self.height = height
+        self.z_end = z_start + z_length
+        self.x_half_gap = x_half_gap
+        self.y_height = y_height
         self.n_filaments = n_filaments
 
         self._loops = self._build_loops()            #here we build the filaments loops, closed so div(B) = 0 by costruction
@@ -70,8 +70,8 @@ class BiotSavartField(MagneticField):
 
     def _build_loops(self):                          #here we actually build the loop
         """Return the (p1, p2) segment pairs of every filament loop."""
-        ys = np.linspace(-self.height / 2.0, self.height / 2.0, self.n_filaments)
-        d = self.half_gap
+        ys = np.linspace(-self.y_height / 2.0, self.y_height / 2.0, self.n_filaments)
+        d = self.x_half_gap
         z0, z1 = self.z_start, self.z_end
 
         segments = []
