@@ -76,15 +76,31 @@ python -m scripts.generate_layout
 
 Builds the geometry (phantom, phantom interfaces, magnet) and the detector planes from the
 `geometry` block of `configs/config.yaml` and saves the layout along z in
-`data/geometry/layout_<n>D_<m>INT/`, with `n` the number of detector planes and `m` the number
-of phantom interfaces (entrance and exit included, i.e. #layers + 1):
+`data/geometry/layout_<n>D_<m>L/`, with `n` the number of detector planes and `m` the number
+of phantom layers:
 
 - `layout.csv`: one row per z position, with the physical boundary and/or detector plane
   placed there, and the region and material just before and just after it
 - `metadata.yml`: date, git commit and the `geometry` block used
+- `report.pdf`: schematic of the system along z (phantom layers coloured by material, magnet,
+  detector planes and boundaries) and the layout table, if `run.plot` is `true`
 
 Options: `--config <name or path>`, `--detectors`/`--no-detectors` (default: with detectors;
-without them only the physical boundaries are saved), `--overwrite`.
+without them only the physical boundaries are saved), `--overwrite`,
+`--plot`/`--no-plot` (default: `run.plot`).
+
+Plotting the report:
+
+```bash
+python -m scripts.generate_layout                      # layout + report.pdf if run.plot is true
+python -m scripts.generate_layout --plot               # layout + report.pdf, whatever run.plot says
+python -m scripts.generate_layout --no-plot            # layout only
+python -m plotting.plot_layout geometry/layout_8D_1L   # redo only the report of an existing layout
+```
+
+Run it with the conda environment activated (`conda activate env_py312_kalman`): calling
+its `python.exe` directly without activating it makes matplotlib fail to load its DLLs on
+Windows, and Python exits silently.
 
 To build the same table in a notebook:
 
