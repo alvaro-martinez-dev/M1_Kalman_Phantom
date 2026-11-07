@@ -109,12 +109,17 @@ python -m scripts.generate_layout
 
 Builds the geometry (phantom, phantom interfaces, magnet) and the detector planes from the
 `geometry` block of `configs/config.yaml` and saves the layout along z in
-`data/geometry/layout_<n>Det_<m>Lay/`, with `n` the number of detector planes and `m` the number
-of phantom layers:
+`data/geometry/layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/`, with
+`n` the total number of detector planes, `m` the number of phantom layers, `p` the detector
+planes at the internal interfaces of the phantom (`m - 1` if `inside_phantom: true`, else 0),
+`k` the detector planes strictly inside the magnet (`n_inside_magnet`) and `hash` a short
+deterministic hash of the layout parameters (positions, thicknesses, materials, number of
+planes): the same config always gives the same folder, and two configs that differ in anything
+that changes the layout never share one. For example `layout_10Det_2Lay1PhDet_2MagDet_a3f9c1`:
 
 - `layout.csv`: one row per z position, with the physical boundary and/or detector plane
   placed there, and the region and material just before and just after it
-- `metadata.yml`: date, git commit and the `geometry` block used
+- `metadata.yml`: date, git commit, the layout parameters with their hash and the `geometry` block used
 - `report.pdf`: schematic of the system along z (phantom layers coloured by material, magnet,
   detector planes and boundaries) and the layout table, if `run.plot` is `true`
 
@@ -128,7 +133,7 @@ Plotting the report:
 python -m scripts.generate_layout                      # layout + report.pdf if run.plot is true
 python -m scripts.generate_layout --plot               # layout + report.pdf, whatever run.plot says
 python -m scripts.generate_layout --no-plot            # layout only
-python -m plotting.plot_layout geometry/layout_8Det_1Lay   # redo only the report of an existing layout
+python -m plotting.plot_layout geometry/layout_11Det_2Lay0PhDet_2MagDet_4b77bc   # redo only the report
 ```
 
 To build the same table in a notebook:
@@ -175,7 +180,7 @@ M1_Kalman_Phantom/
 ├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout)
 ├── data/                    generated outputs, one folder per run
 │   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
-│   └── geometry/            layout_<n>Det_<m>Lay/: layout.csv, metadata.yml, report.pdf
+│   └── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
 ├── notebooks/               exploration and validation
 ├── tests/                   pytest tests (python -m pytest)
 ├── pdf_info/                project proposal, concept figure and guides
