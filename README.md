@@ -39,6 +39,18 @@ pip install -r requirements.txt
 
 ## Usage
 
+### (0) Activate your environment (Essential!)
+
+```bash
+mamba activate env_py312_kalman
+```
+or 
+
+```bash
+mamba activate env_py312_kalman
+```
+or with pip. 
+
 ### (1) Generate an initial beam dataset
 
 ```bash
@@ -76,7 +88,7 @@ python -m scripts.generate_layout
 
 Builds the geometry (phantom, phantom interfaces, magnet) and the detector planes from the
 `geometry` block of `configs/config.yaml` and saves the layout along z in
-`data/geometry/layout_<n>D_<m>L/`, with `n` the number of detector planes and `m` the number
+`data/geometry/layout_<n>Det_<m>Lay/`, with `n` the number of detector planes and `m` the number
 of phantom layers:
 
 - `layout.csv`: one row per z position, with the physical boundary and/or detector plane
@@ -95,12 +107,8 @@ Plotting the report:
 python -m scripts.generate_layout                      # layout + report.pdf if run.plot is true
 python -m scripts.generate_layout --plot               # layout + report.pdf, whatever run.plot says
 python -m scripts.generate_layout --no-plot            # layout only
-python -m plotting.plot_layout geometry/layout_8D_1L   # redo only the report of an existing layout
+python -m plotting.plot_layout geometry/layout_8Det_1Lay   # redo only the report of an existing layout
 ```
-
-Run it with the conda environment activated (`conda activate env_py312_kalman`): calling
-its `python.exe` directly without activating it makes matplotlib fail to load its DLLs on
-Windows, and Python exits silently.
 
 To build the same table in a notebook:
 

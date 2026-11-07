@@ -6,7 +6,7 @@
 #   2. The layout table itself, to read the exact positions
 #
 # Usage (from the repo root), to redo the report of an existing layout:
-#   python -m plotting.plot_layout geometry/layout_8D_1L
+#   python -m plotting.plot_layout geometry/layout_8Det_1Lay
 
 import argparse
 from pathlib import Path

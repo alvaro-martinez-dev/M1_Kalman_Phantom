@@ -1,7 +1,7 @@
 # scripts/generate_layout.py
 #
 # Builds the geometry (and the detector planes) from a yaml config and saves the layout table
-# in data/geometry/layout_<n>D_<m>L/ to check the generated positions:
+# in data/geometry/layout_<n>Det_<m>Lay/ to check the generated positions:
 #   layout.csv:   one row per z (boundaries + detector planes, region/material on each side)
 #   metadata.yml: date, git commit and the geometry block actually used
 #   report.pdf:   schematic of the system and the table, if run.plot is true (see plotting/plot_layout.py)
@@ -9,7 +9,7 @@
 #
 # Usage (from the repo root):
 #   python -m scripts.generate_layout                         # uses configs/config.yaml
-#   python -m scripts.generate_layout --no-detectors          # only the physical boundaries (0D)
+#   python -m scripts.generate_layout --no-detectors          # only the physical boundaries (0Det)
 #   python -m scripts.generate_layout --overwrite             # replace an existing layout folder
 #   python -m scripts.generate_layout --no-plot               # skips the report of run.plot
 #   python -m scripts.generate_layout --config my_config --overwrite
@@ -55,7 +55,7 @@ def main():
     n_detectors = int(table["is_detector"].sum())
     n_layers = len(geometry.phantom_layers)
 
-    out_dir = DATA_DIR / "geometry" / f"layout_{n_detectors}D_{n_layers}L"
+    out_dir = DATA_DIR / "geometry" / f"layout_{n_detectors}Det_{n_layers}Lay"
     if out_dir.exists() and any(out_dir.iterdir()):
         if not args.overwrite:
             raise FileExistsError(f"{out_dir} already exists (use --overwrite to replace it)")
