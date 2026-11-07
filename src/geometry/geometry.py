@@ -5,6 +5,10 @@ from enum import Enum
 
 import numpy as np
 
+import src.constants as constants
+from src.constants import Material
+from src.utils.validation import check_real
+
 TOL = 1e-6 # [mm] two z positions closer than this are considered the same
 
 
@@ -19,15 +23,39 @@ class Geometry():
     def __init__(self, z_start_phantom, phantom_layers, z_start_magnet, z_length_magnet,
                  spacing_after_magnet):
 
-        self.z_start_phantom = z_start_phantom
-        self.phantom_layers = phantom_layers
-        self.z_start_magnet = z_start_magnet
-        self.z_length_magnet = z_length_magnet
-        self.spacing_after_magnet = spacing_after_magnet
+        # The beam starts at z = 0: nothing can be placed before it
+        self.z_start_phantom = check_real("z_start_phantom", z_start_phantom, minimum=0.0)
+        self.phantom_layers = self.check_layers(phantom_layers)
+        self.z_start_magnet = check_real("z_start_magnet", z_start_magnet, minimum=0.0)
+        self.z_length_magnet = check_real("z_length_magnet", z_length_magnet, minimum=TOL, strict=True)
+        self.spacing_after_magnet = check_real("spacing_after_magnet", spacing_after_magnet, minimum=0.0)
 
         self.z_end_phantom, self.z_end_magnet = self.compute_z_end()
         self.z_end_system = self.z_end_magnet + self.spacing_after_magnet
         self.z_phantom_interfaces = self.compute_z_phantom_interfaces()
+
+
+    @staticmethod
+    def check_layers(phantom_layers):
+        # At least one layer, each one {material: <Material in src/constants.py>, thickness: > 0}.
+        # A zero thickness is rejected: it would put two interfaces at the same z
+        if not isinstance(phantom_layers, (list, tuple)) or len(phantom_layers) == 0:
+            raise ValueError(f"phantom_layers must be a non-empty list of layers, got {phantom_layers!r}")
+
+        checked = []
+        for k, layer in enumerate(phantom_layers, start=1):
+            name = f"phantom layer {k}"
+            if not isinstance(layer, dict) or set(layer) != {"material", "thickness"}:
+                raise ValueError(f"{name} must be {{material: ..., thickness: ...}}, got {layer!r}")
+
+            material = layer["material"]
+            if not isinstance(material, str) or not isinstance(getattr(constants, material, None), Material):
+                raise ValueError(f"{name}: material {material!r} is not a Material of src/constants.py")
+
+            thickness = check_real(f"{name}: thickness", layer["thickness"], minimum=TOL, strict=True)
+            checked.append({"material": material, "thickness": thickness})
+
+        return checked
 
 
     def compute_z_end(self):

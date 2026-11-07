@@ -6,6 +6,8 @@ import warnings
 
 import numpy as np
 
+from src.utils.validation import check_bool, check_count
+
 from .geometry import Geometry, TOL
 
 
@@ -14,13 +16,15 @@ class DetectorPlanes():
     def __init__(self, geometry: Geometry, n_before_phantom, n_after_phantom_before_magnet,
                  n_after_magnet, inside_phantom, n_inside_magnet):
 
+        if not isinstance(geometry, Geometry):
+            raise ValueError(f"geometry must be a Geometry, got {type(geometry).__name__}")
         self.geometry = geometry
 
-        self.n_before_phantom = n_before_phantom
-        self.n_after_phantom_before_magnet = n_after_phantom_before_magnet
-        self.n_after_magnet = n_after_magnet
-        self.inside_phantom = inside_phantom # boolean value
-        self.n_inside_magnet = n_inside_magnet
+        self.n_before_phantom = check_count("n_before_phantom", n_before_phantom)
+        self.n_after_phantom_before_magnet = check_count("n_after_phantom_before_magnet", n_after_phantom_before_magnet)
+        self.n_after_magnet = check_count("n_after_magnet", n_after_magnet)
+        self.inside_phantom = check_bool("inside_phantom", inside_phantom)
+        self.n_inside_magnet = check_count("n_inside_magnet", n_inside_magnet)
 
         self.z_phantom_layers = self.compute_z_phantom_layers()
         self.z_free_planes = self.compute_z_free_planes()

@@ -3,6 +3,10 @@
 
 # Units: MeV, mm, rad
 
+# ----------------------------------
+# CHECK THE FILE src/constants.py FOR VARIABLE DEFINITION !!!!!!!!!!!!!
+# ----------------------------------
+
 # ----------------------------------------------
 # ------------------- Run ----------------------
 # ----------------------------------------------
@@ -68,15 +72,16 @@ decays:
 # ----------------------------------------------
 
 geometry:
-  spacing_after_magnet: 100 # [mm] distance between end magnet and end of the system
+  spacing_after_magnet: 200 # [mm] distance between end magnet and end of the system
 
   phantom:
-    z_start: 50.0             # [mm] entrance of the first layer
+    z_start: 100.0             # [mm] entrance of the first layer
     layers:                   # in beam order; material = Material in src/constants.py
       - {material: WATER, thickness: 200.0}
+      - {material: BONE, thickness: 100.0}
 
   magnet:
-    z_start: 400.0            # [mm] start of the magnet
+    z_start: 350.0            # [mm] start of the magnet
     z_length: 300.0             # [mm]
     x_half_gap: 50.0            # [mm] plates at x = +-half_gap
     y_height: 100               # [mm] thickness of the magnet plates in the y axis
@@ -90,16 +95,16 @@ geometry:
       dz: 2.0                 # [mm]
       margin: 100.0           # [mm]
 
-  detector_planes:
+  detector_planes: # we always generate detectors on the borders of the phantom and magnet!
     sigma_x: 0.1              # [mm] resolution of every plane
     placement: 
               # n_planes will be simetrically placed in the different regions for simplicity
               # immediately before and after the phantom/magnet there are detector planes.
               # this numbers don't account for these already established detector planes.
-      n_before_phantom: 1 # (n_before_phantom + 1) detector planes
-      n_after_phantom_before_magnet: 1 # (n_after_phantom_before_magnet + 2) planes
-      n_after_magnet: 1 # (n_after_magnet + 1) planes
-      n_inside_magnet: 1
+      n_before_phantom: 2 # number of detector planes before phantom
+      n_after_phantom_before_magnet: 3 # number o detector planes after phantom and before magnet
+      n_after_magnet: 2 # number of detector planes after magnet
+      n_inside_magnet: 2
 
       inside_phantom: true # one plane at each internal interface (#interfaces - 2 planes)
 

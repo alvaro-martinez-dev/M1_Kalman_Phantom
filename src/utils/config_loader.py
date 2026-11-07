@@ -56,16 +56,34 @@ def make_beam(beam_cfg):
     )
 
 
+# cfg: a block of the yaml
+# path: dotted keys inside it (e.g. "phantom.z_start")
+# block: name of cfg in the yaml, for the error message (e.g. "geometry")
+# Returns: the value, or raises a KeyError that says which key of the yaml is missing
+def get_key(cfg, path, block):
+
+    value = cfg
+    for key in path.split("."):
+        if not isinstance(value, dict) or key not in value:
+            raise KeyError(f"missing key '{block}.{path}' in the yaml")
+        value = value[key]
+
+    return value
+
+
 # geometry_cfg: the geometry block of the yaml
 # Returns: Geometry built from it (phantom, interfaces, magnet; no detectors)
 def make_geometry(geometry_cfg):
 
+    def get(path):
+        return get_key(geometry_cfg, path, "geometry")
+
     return Geometry(
-        z_start_phantom=geometry_cfg["phantom"]["z_start"],
-        phantom_layers=geometry_cfg["phantom"]["layers"],
-        z_start_magnet=geometry_cfg["magnet"]["z_start"],
-        z_length_magnet=geometry_cfg["magnet"]["z_length"],
-        spacing_after_magnet=geometry_cfg["spacing_after_magnet"],
+        z_start_phantom=get("phantom.z_start"),
+        phantom_layers=get("phantom.layers"),
+        z_start_magnet=get("magnet.z_start"),
+        z_length_magnet=get("magnet.z_length"),
+        spacing_after_magnet=get("spacing_after_magnet"),
     )
 
 
@@ -74,12 +92,14 @@ def make_geometry(geometry_cfg):
 # Returns: DetectorPlanes built from it
 def make_detector_planes(geometry, detectors_cfg):
 
-    placement = detectors_cfg["placement"]
+    def get(key):
+        return get_key(detectors_cfg, f"placement.{key}", "geometry.detector_planes")
+
     return DetectorPlanes(
         geometry,
-        n_before_phantom=placement["n_before_phantom"],
-        n_after_phantom_before_magnet=placement["n_after_phantom_before_magnet"],
-        n_after_magnet=placement["n_after_magnet"],
-        inside_phantom=placement["inside_phantom"],
-        n_inside_magnet=placement["n_inside_magnet"],
+        n_before_phantom=get("n_before_phantom"),
+        n_after_phantom_before_magnet=get("n_after_phantom_before_magnet"),
+        n_after_magnet=get("n_after_magnet"),
+        inside_phantom=get("inside_phantom"),
+        n_inside_magnet=get("n_inside_magnet"),
     )

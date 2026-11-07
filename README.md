@@ -19,39 +19,60 @@ git clone https://github.com/alvaro-martinez-dev/M1_Kalman_Phantom.git
 cd M1_Kalman_Phantom
 ```
 
-### (A.1) You work with anaconda/miniforge:
+### (A.I) You work with conda (Anaconda, Miniconda or Miniforge):
 ```bash
 conda env create -f environment.yml
 conda activate env_py312_kalman
 ```
+If the environment `env_py312_kalman` already exists and `environment.yml` has changed:
 
-### (A.2) You work with miniforge (faster installation):
+```bash
+conda env update -n env_py312_kalman -f environment.yml
+```
+
+### (A.II) You work with mamba (comes with Miniforge, faster installation):
 ```bash
 mamba env create -f environment.yml
 mamba activate env_py312_kalman
 ```
+If the environment `env_py312_kalman` already exists and `environment.yml` has changed:
 
-### (B) You work with pip: 
 ```bash
+mamba env update -n env_py312_kalman -f environment.yml
+```
+
+### (B) You work with pip (requires Python 3.12):
+```bash
+python -m venv .venv
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # Linux / macOS
 pip install -r requirements.txt
+```
+If the environment `.venv` already exists and `requirements.txt` has changed:
+
+```bash
+pip install -r requirements.txt --upgrade
 ```
 
 
 ## Usage
 
-### (0) Activate your environment (Essential!)
+All the commands are run from the root of the repository (`python -m ...` needs it to
+find `src/`, `scripts/` and `plotting/`).
+
+### (1) Activate the environment
 
 ```bash
-mamba activate env_py312_kalman
+conda activate env_py312_kalman     # conda
+mamba activate env_py312_kalman     # mamba
+.venv\Scripts\activate              # pip, Windows
+source .venv/bin/activate           # pip, Linux / macOS
 ```
-or 
 
-```bash
-mamba activate env_py312_kalman
-```
-or with pip. 
+On Windows, calling the `python.exe` of the conda environment directly without activating it
+makes matplotlib fail to load its DLLs, and Python exits silently.
 
-### (1) Generate an initial beam dataset
+### (2) Generate an initial beam dataset
 
 ```bash
 python -m scripts.generate_init_beam --beam proton
@@ -61,7 +82,7 @@ Generates `run.n_events` tracks of the beam block `proton` of `configs/config.ya
 (with seed `run.seed`) and saves them in `data/init_beam/proton_n<n_events>_seed<seed>/`:
 
 - `tracks.parquet`: one row per track (see `src/montecarlo/tracks.py`)
-- `metadata.yaml`: relevant information of the yaml used
+- `metadata.yml`: date, git commit and the parameters of the yaml used
 - `report.pdf`: validation plots of the dataset, if `run.plot` is `true`
 
 Options: `--config <name or path>`, `--beam <block>` (default: `run.beam`),
@@ -80,7 +101,7 @@ from src.utils.dataset_io import load_dataset
 df, cfg = load_dataset("init_beam/proton_n100000_seed42")
 ```
 
-### (2) Generate system and detector layout
+### (3) Generate system and detector layout
 
 ```bash
 python -m scripts.generate_layout
@@ -122,19 +143,48 @@ detectors = make_detector_planes(geometry, cfg["detector_planes"])
 table = layout_table(geometry, detectors)   # layout_table(geometry) for no detectors
 ```
 
+### Tests
+
+```bash
+python -m pytest            # all the tests of tests/
+python -m pytest -q tests/test_geometry.py
+```
+
 
 ## Repository structure
 
 ```
-src/        main code (geometry, simulation, Kalman filter)
-tests/      tests
-notebooks/  exploration and plots
-scripts/    scripts to reproduce the results
-pdf_info/   pdfs with some project organisation/guides
-plotting/   plotting codes
-configs/    folder with the config files to be changed for different physical studies
-data/       data folder with datasets, metadata and revision plots
+M1_Kalman_Phantom/
+├── configs/
+│   └── config.yaml          all the physical parameters: run, beams, decays, geometry, kalman
+├── src/                     main code (importable as src.*)
+│   ├── constants.py         particles, decay channels, materials, physical constants
+│   ├── geometry/            layout along z
+│   │   ├── geometry.py      phantom layers, interfaces, magnet, region/material at each z
+│   │   ├── detectors.py     position of the detector planes
+│   │   └── layout.py        table of boundaries + detector planes
+│   ├── field/               magnetic field models (hard edge, Biot-Savart, interpolated)
+│   ├── phantom/             energy loss (Bethe-Bloch), multiple scattering (Highland), dose
+│   ├── montecarlo/          initial beam, two-body decays, standard track table
+│   ├── kalman/              Kalman filter (in progress)
+│   └── utils/               yaml loading, dataset save/load, input validation
+├── scripts/                 entry points, run as python -m scripts.<name>
+│   ├── generate_init_beam.py
+│   ├── generate_layout.py
+│   └── check_biot_savart.py
+├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout)
+├── data/                    generated outputs, one folder per run
+│   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
+│   └── geometry/            layout_<n>Det_<m>Lay/: layout.csv, metadata.yml, report.pdf
+├── notebooks/               exploration and validation
+├── tests/                   pytest tests (python -m pytest)
+├── pdf_info/                project proposal, concept figure and guides
+├── environment.yml          conda / mamba environment
+└── requirements.txt         pip dependencies
 ```
+
+Every output folder of `data/` carries its `metadata.yml` (date, git commit and parameters used),
+so any result can be traced back to the code and config that produced it.
 
 ## Results
 
