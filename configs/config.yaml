@@ -68,6 +68,8 @@ decays:
 # ----------------------------------------------
 
 geometry:
+  spacing_after_magnet: 100 # [mm] distance between end magnet and end of the system
+
   phantom:
     z_start: 50.0             # [mm] entrance of the first layer
     layers:                   # in beam order; material = Material in src/constants.py
@@ -90,7 +92,6 @@ geometry:
 
   detector_planes:
     sigma_x: 0.1              # [mm] resolution of every plane
-    spacing_after_magnet: 100 # [mm] distance between end magnet and end of the system
     placement: 
               # n_planes will be simetrically placed in the different regions for simplicity
               # immediately before and after the phantom/magnet there are detector planes.

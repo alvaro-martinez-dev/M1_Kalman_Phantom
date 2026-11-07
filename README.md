@@ -39,7 +39,7 @@ pip install -r requirements.txt
 
 ## Usage
 
-### Generate an initial beam dataset
+### (1) Generate an initial beam dataset
 
 ```bash
 python -m scripts.generate_init_beam --beam proton
@@ -66,6 +66,36 @@ To load it in a notebook:
 ```python
 from src.utils.dataset_io import load_dataset
 df, cfg = load_dataset("init_beam/proton_n100000_seed42")
+```
+
+### (2) Generate system and detector layout
+
+```bash
+python -m scripts.generate_layout
+```
+
+Builds the geometry (phantom, phantom interfaces, magnet) and the detector planes from the
+`geometry` block of `configs/config.yaml` and saves the layout along z in
+`data/geometry/layout_<n>D_<m>INT/`, with `n` the number of detector planes and `m` the number
+of phantom interfaces (entrance and exit included, i.e. #layers + 1):
+
+- `layout.csv`: one row per z position, with the physical boundary and/or detector plane
+  placed there, and the region and material just before and just after it
+- `metadata.yml`: date, git commit and the `geometry` block used
+
+Options: `--config <name or path>`, `--detectors`/`--no-detectors` (default: with detectors;
+without them only the physical boundaries are saved), `--overwrite`.
+
+To build the same table in a notebook:
+
+```python
+from src.utils.config_loader import load_config, make_geometry, make_detector_planes
+from src.geometry.layout import layout_table
+
+cfg = load_config("config")["geometry"]
+geometry = make_geometry(cfg)
+detectors = make_detector_planes(geometry, cfg["detector_planes"])
+table = layout_table(geometry, detectors)   # layout_table(geometry) for no detectors
 ```
 
 

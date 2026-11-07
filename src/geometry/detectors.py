@@ -1,4 +1,6 @@
-# This .py has the aim of determining the position of the detector planes along the machine
+# This .py has the aim of determining the position of the detector planes along the machine.
+# The physical layout (phantom, interfaces, magnet) lives in Geometry: the detector planes
+# only read it, so the geometry exists and is the same whether there are planes or not
 
 import warnings
 
@@ -7,14 +9,12 @@ import numpy as np
 from .geometry import Geometry, TOL
 
 
-class DetectorPlanes(Geometry):
+class DetectorPlanes():
 
-    def __init__(self, z_start_phantom, phantom_layers, z_start_magnet, z_length_magnet,
-                 spacing_after_magnet, n_before_phantom, n_after_phantom_before_magnet,
+    def __init__(self, geometry: Geometry, n_before_phantom, n_after_phantom_before_magnet,
                  n_after_magnet, inside_phantom, n_inside_magnet):
 
-        super().__init__(z_start_phantom, phantom_layers, z_start_magnet, z_length_magnet,
-                         spacing_after_magnet)
+        self.geometry = geometry
 
         self.n_before_phantom = n_before_phantom
         self.n_after_phantom_before_magnet = n_after_phantom_before_magnet
@@ -31,7 +31,7 @@ class DetectorPlanes(Geometry):
         if not self.inside_phantom:
             return np.array([])
 
-        return self.z_phantom_interfaces[1:-1]
+        return self.geometry.z_phantom_interfaces[1:-1]
 
 
     @staticmethod
@@ -43,18 +43,19 @@ class DetectorPlanes(Geometry):
     def compute_z_free_planes(self):
         # Computes the detector planes that are not fixed by construction,
         # ie the ones before the phantom, after phantom and before magnet, inside magnet, after magnet
+        g = self.geometry
         return np.concatenate([
-            self._planes_between(0.0, self.z_start_phantom, self.n_before_phantom),
-            self._planes_between(self.z_end_phantom, self.z_start_magnet, self.n_after_phantom_before_magnet),
-            self._planes_between(self.z_start_magnet, self.z_end_magnet, self.n_inside_magnet),
-            self._planes_between(self.z_end_magnet, self.z_end_system, self.n_after_magnet),
+            self._planes_between(0.0, g.z_start_phantom, self.n_before_phantom),
+            self._planes_between(g.z_end_phantom, g.z_start_magnet, self.n_after_phantom_before_magnet),
+            self._planes_between(g.z_start_magnet, g.z_end_magnet, self.n_inside_magnet),
+            self._planes_between(g.z_end_magnet, g.z_end_system, self.n_after_magnet),
         ])
 
 
     def compute_z_detector_planes(self):
-
+        g = self.geometry
         z_all_planes = np.sort(np.concatenate((
-            [self.z_start_phantom, self.z_end_phantom, self.z_start_magnet, self.z_end_magnet],
+            [g.z_start_phantom, g.z_end_phantom, g.z_start_magnet, g.z_end_magnet],
             self.z_phantom_layers,
             self.z_free_planes,
         )))
@@ -85,16 +86,17 @@ class DetectorPlanes(Geometry):
     def named_planes(self):
         # {name: z} of every detector plane, in beam order. A plane shared by two boundaries
         # (eg phantom touching the magnet) has both names, so use compute_z_detector_planes to count planes
+        g = self.geometry
         layer_planes = self.z_phantom_layers.tolist()
 
         return {
-            **self._named_free_planes("before_phantom", 0.0, self.z_start_phantom, self.n_before_phantom),
-            "D_phantom_start": self.z_start_phantom,
+            **self._named_free_planes("before_phantom", 0.0, g.z_start_phantom, self.n_before_phantom),
+            "D_phantom_start": g.z_start_phantom,
             **{f"D_layer_{k}_to_{k + 1}": z for k, z in enumerate(layer_planes, start=1)},
-            "D_phantom_end": self.z_end_phantom,
-            **self._named_free_planes("gap", self.z_end_phantom, self.z_start_magnet, self.n_after_phantom_before_magnet),
-            "D_magnet_start": self.z_start_magnet,
-            **self._named_free_planes("magnet", self.z_start_magnet, self.z_end_magnet, self.n_inside_magnet),
-            "D_magnet_end": self.z_end_magnet,
-            **self._named_free_planes("after_magnet", self.z_end_magnet, self.z_end_system, self.n_after_magnet),
+            "D_phantom_end": g.z_end_phantom,
+            **self._named_free_planes("gap", g.z_end_phantom, g.z_start_magnet, self.n_after_phantom_before_magnet),
+            "D_magnet_start": g.z_start_magnet,
+            **self._named_free_planes("magnet", g.z_start_magnet, g.z_end_magnet, self.n_inside_magnet),
+            "D_magnet_end": g.z_end_magnet,
+            **self._named_free_planes("after_magnet", g.z_end_magnet, g.z_end_system, self.n_after_magnet),
         }

@@ -9,6 +9,8 @@ from pathlib import Path
 import yaml
 
 import src.constants as constants
+from src.geometry.detectors import DetectorPlanes
+from src.geometry.geometry import Geometry
 from src.montecarlo.init_beam import Initial_Beam
 
 
@@ -51,4 +53,33 @@ def make_beam(beam_cfg):
         p0=beam_cfg["p0"],
         sigma_p0=beam_cfg["sigma_p0"],
         particle=get_constant(beam_cfg["particle"]),
+    )
+
+
+# geometry_cfg: the geometry block of the yaml
+# Returns: Geometry built from it (phantom, interfaces, magnet; no detectors)
+def make_geometry(geometry_cfg):
+
+    return Geometry(
+        z_start_phantom=geometry_cfg["phantom"]["z_start"],
+        phantom_layers=geometry_cfg["phantom"]["layers"],
+        z_start_magnet=geometry_cfg["magnet"]["z_start"],
+        z_length_magnet=geometry_cfg["magnet"]["z_length"],
+        spacing_after_magnet=geometry_cfg["spacing_after_magnet"],
+    )
+
+
+# geometry: Geometry the planes are placed on
+# detectors_cfg: the geometry.detector_planes block of the yaml
+# Returns: DetectorPlanes built from it
+def make_detector_planes(geometry, detectors_cfg):
+
+    placement = detectors_cfg["placement"]
+    return DetectorPlanes(
+        geometry,
+        n_before_phantom=placement["n_before_phantom"],
+        n_after_phantom_before_magnet=placement["n_after_phantom_before_magnet"],
+        n_after_magnet=placement["n_after_magnet"],
+        inside_phantom=placement["inside_phantom"],
+        n_inside_magnet=placement["n_inside_magnet"],
     )

@@ -1,0 +1,6 @@
+z,boundary,detector,is_detector,region_before,region_after,material_before,material_after
+50.0,phantom_start,,False,outside,phantom,,WATER
+250.0,phantom_end,,False,phantom,outside,WATER,
+400.0,magnet_start,,False,outside,magnet,,
+700.0,magnet_end,,False,magnet,outside,,
+800.0,system_end,,False,outside,outside,,
