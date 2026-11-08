@@ -9,7 +9,7 @@ Material and particle definitions come from src.constants
 """
 import numpy as np
 from scipy.integrate import quad
-
+import src.constants as constants
 from src.constants import (
     K_BETHE, M_ELECTRON, PROTON, HIGHLAND_CONST,
     Particle, Material,
@@ -201,3 +201,20 @@ def highland_width(T_MeV, thickness_mm, material: Material,
                    * (1.0 + 0.038 * np.log(x_over_X0)))
     return theta_total / np.sqrt(n_slices)
 
+
+def material_object(material_name: str) -> Material:
+    """
+    Map a material name (as stored in Geometry.phantom_layers, e.g.
+    "WATER" or "BONE") to the corresponding Material object in
+    src.constants.
+
+    Geometry.check_layers already validates that the name refers to a
+    Material in src.constants, so this is a safe typed accessor.
+    """
+    material = getattr(constants, material_name, None)
+    if not isinstance(material, Material):
+        raise ValueError(
+            f"Unknown material: {material_name!r}. "
+            f"Expected the name of a Material in src.constants."
+        )
+    return material
