@@ -4,6 +4,12 @@ import numpy as np
 
 # Computes terms for obtaining the runge-kutta-nymstrom k1, k2, k3 and k4 parameters and x[n+1], x'[n+1]
 def rkn_terms(fun, zn, xn, xprimen, h):
+    # fun: x'' = f(z, x, x')
+    # zn: z_n point
+    # xn: x[z_n] point associated to z_n
+    # xprimen: xprime_n[z_n] point associated to z_n
+    # h: step length
+
     k1 = fun(zn, xn, xprimen)
     k2 = fun(zn + (h/2), xn + xprimen*(h/2) + (h**2/8)*k1, xprimen + k1*(h/2))
     k3 = fun(zn + (h/2), xn + xprimen*(h/2) + (h**2/8)*k1, xprimen + k2*(h/2))
@@ -19,6 +25,13 @@ def rkn_terms(fun, zn, xn, xprimen, h):
 # Runge-Kutta-Nymstrom method for x'' = f(z,x,x'), useful for when there is magnetic field (momentum constant)
 # Check https://iopscience.iop.org/article/10.1088/1748-0221/4/04/P04001/pdf
 def rkn(fun, z0, z_end, x0, xprime0, h):
+    # fun: x'' = f(z, x, x')
+    # z0: z_0 point
+    # z_end: z_final point
+    # x0: x[z0] point associated to z_n
+    # xprime0: xprime[z0] point associated to z_n
+    # h: step length
+
     if h <= 0:
         raise ValueError(f"h must be > 0, got {h}")
 
