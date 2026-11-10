@@ -209,6 +209,8 @@ so any result can be traced back to the code and config that produced it.
 - E. Lund et al., *Track parameter propagation through the application of
   a new adaptive Runge-Kutta-Nyström method in the ATLAS experiment*,
   JINST 4 (2009) P04001.
+- Zeltkevic, M. (1998, April 15). Runge-Kutta methods. Course 10.001 Notes
+  Massachusetts Institute of Technology. Retrieved November 10, 2026, from https://web.mit.edu/10.001/Web/Course_Notes/Differential_Equations_Notes/node5.html
 - S. Navas et al. (Particle Data Group), *Review of Particle Physics*,
   Phys. Rev. D 110 (2024) 030001. See the reviews *Passage of particles
   through matter* and *Kinematics*.
