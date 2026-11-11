@@ -1,0 +1,12 @@
+z,boundary,detector,is_detector,region_before,region_after,material_before,material_after
+25.0,,D_before_phantom_1,True,outside,outside,,
+50.0,phantom_start,D_phantom_start,True,outside,phantom,,WATER
+150.0,layer_1_to_2,D_layer_1_to_2,True,phantom,phantom,WATER,BONE
+200.0,phantom_end,D_phantom_end,True,phantom,outside,BONE,
+266.6666666666667,,D_gap_1,True,outside,outside,,
+333.33333333333337,,D_gap_2,True,outside,outside,,
+400.0,magnet_start,D_magnet_start,True,outside,magnet,,
+550.0,,D_magnet_1,True,magnet,magnet,,
+700.0,magnet_end,D_magnet_end,True,magnet,outside,,
+800.0,,D_after_magnet_1,True,outside,outside,,
+900.0,system_end,,False,outside,outside,,

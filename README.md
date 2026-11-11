@@ -123,9 +123,13 @@ that changes the layout never share one. For example `layout_10Det_2Lay1PhDet_2M
 - `report.pdf`: schematic of the system along z (phantom layers coloured by material, magnet,
   detector planes and boundaries) and the layout table, if `run.plot` is `true`
 
-Options: `--config <name or path>`, `--detectors`/`--no-detectors` (default: with detectors;
-without them only the physical boundaries are saved), `--overwrite`,
-`--plot`/`--no-plot` (default: `run.plot`).
+Options: `--config <name or path>`, `--detectors`/`--no-detectors` (default:
+`geometry.detector_planes.enabled`; without them only the physical boundaries are saved),
+`--overwrite`, `--plot`/`--no-plot` (default: `run.plot`).
+
+The phantom, the magnet and the detector planes can each be removed with `enabled: false` in
+their block of the yaml (their other keys are kept but not read). Without phantom or magnet the
+free regions around it merge and get the detector planes of both (see `src/geometry/detectors.py`).
 
 Plotting the report:
 
@@ -148,6 +152,60 @@ detectors = make_detector_planes(geometry, cfg["detector_planes"])
 table = layout_table(geometry, detectors)   # layout_table(geometry) for no detectors
 ```
 
+### (4) Propagate the tracks through the system (Monte Carlo truth)
+
+```bash
+python -m scripts.generate_propagation
+```
+
+Takes the initial tracks of `propagator.input` (a dataset of step (2), e.g.
+`init_beam/proton_n100000_seed42`), keeps `propagator.n_max` of them chosen at random (all of
+them if `null`; it must not exceed the tracks of the input), propagates each one through the
+system of the `geometry`
+block and stores its **true** state at every detector plane. The detector resolution is not
+applied here: the propagation is the slow step, so it is done once and the hits can be smeared
+afterwards with any `sigma_x`.
+
+What happens to each track, from its `z0` to the end of the system:
+
+- **Vacuum**: straight line where there is no field, Runge-Kutta-Nyström where there may be
+  (also the fringe field before and after the magnet). |p| is constant.
+- **Phantom**: energy loss (Bethe-Bloch) and field coupled, Runge-Kutta on (x, tx, q/p).
+  Each layer is cut into slices of at most `propagator.scattering.max_slice` mm, and a random
+  multiple-scattering kick (dx, dtx) is applied at the end of each slice (Highland with the
+  local momentum). A particle whose range ends in the phantom stops there.
+
+`propagator.seed` gives two independent random streams: one for the choice of the `n_max`
+tracks and one for the kicks. The chosen tracks keep their order and their `event_id` of the input.
+- **Magnet**: field from `geometry.magnet` (tabulated once over the whole system if
+  `interpolation.enabled`); outside the gap (|x| > `x_half_gap`) the field is zero.
+
+The output goes to `data/propagation/<input name>_prop_seed<seed>[_n<n-max>]/`:
+
+- `tracks.parquet`: one row per track: `stopped`, final state (`z_final`, `x_final`, `tx_final`,
+  `q_over_p_final`, `T_final`) and `n_planes`, the number of planes it reached
+- `states.parquet`: one row per (track, plane reached): `track_id`, `event_id`, `plane_index`,
+  `plane`, `z`, `x`, `tx`, `q_over_p`, `T`. A track that stops in the phantom has no rows after
+  it stops, so the absorption shows as fewer tracks in the later planes
+- `metadata.yml`: date, git commit, input dataset, seed, `n_max`, the detector planes (name and
+  z) and the `geometry` and `propagator` blocks used
+
+Options: `--config <name or path>`, `--input <dataset>` (default: `propagator.input`),
+`--n-max <n>` (default: `propagator.n_max`), `--name <folder>`, `--overwrite`.
+
+Speed: about 70 ms per track that crosses the whole system with `step: 1.0` (100 000 tracks
+take about 2 hours), so start with a small `n_max`. Only charged particles of a single species, going
+forwards (`pz0 > 0`), can be propagated: a neutral beam (e.g. `jpsi`) leaves no hits.
+
+To load it in a notebook:
+
+```python
+from src.utils.dataset_io import load_dataset, load_table
+tracks, metadata = load_dataset("propagation/proton_n100000_seed42_prop_seed45_n1000")
+states = load_table("propagation/proton_n100000_seed42_prop_seed45_n1000", "states")
+states.groupby("plane", sort=False)["x"].std()      # spread of x at each plane
+```
+
 ### Tests
 
 ```bash
@@ -161,26 +219,33 @@ python -m pytest -q tests/test_geometry.py
 ```
 M1_Kalman_Phantom/
 ├── configs/
-│   └── config.yaml          all the physical parameters: run, beams, decays, geometry, kalman
+│   └── config.yaml          all the parameters: run, beams, decays, geometry, propagator, kalman
 ├── src/                     main code (importable as src.*)
 │   ├── constants.py         particles, decay channels, materials, physical constants
 │   ├── geometry/            layout along z
 │   │   ├── geometry.py      phantom layers, interfaces, magnet, region/material at each z
 │   │   ├── detectors.py     position of the detector planes
 │   │   └── layout.py        table of boundaries + detector planes
-│   ├── field/               magnetic field models (hard edge, Biot-Savart, interpolated)
-│   ├── phantom/             energy loss (Bethe-Bloch), multiple scattering (Highland), dose
-│   ├── montecarlo/          initial beam, two-body decays, standard track table
+│   ├── field/               magnetic field models (hard edge, Biot-Savart, interpolated, no field)
+│   ├── phantom/             energy loss (Bethe-Bloch), CSDA range, Highland width, dose
+│   ├── propagator/          track propagation along z
+│   │   ├── propagator.py    region by region: straight line / RKN in vacuum, RK in the phantom
+│   │   ├── equations.py     equations of motion of each region
+│   │   ├── rk4.py           Runge-Kutta and Runge-Kutta-Nyström integrators
+│   │   └── scattering.py    multiple scattering per slice: theta0, (dx, dtx) covariance, kicks
+│   ├── montecarlo/          initial beam, two-body decays, track table, full propagation MC
 │   ├── kalman/              Kalman filter (in progress)
 │   └── utils/               yaml loading, dataset save/load, input validation
 ├── scripts/                 entry points, run as python -m scripts.<name>
 │   ├── generate_init_beam.py
 │   ├── generate_layout.py
+│   ├── generate_propagation.py
 │   └── check_biot_savart.py
 ├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout)
 ├── data/                    generated outputs, one folder per run
 │   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
-│   └── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
+│   ├── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
+│   └── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml
 ├── notebooks/               exploration and validation
 ├── tests/                   pytest tests (python -m pytest)
 ├── pdf_info/                project proposal, concept figure and guides

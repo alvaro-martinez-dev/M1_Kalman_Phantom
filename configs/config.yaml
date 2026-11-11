@@ -13,9 +13,9 @@
 
 run:
   seed: 42
-  n_events: 100000
-  beam: jpsi                  # which block of beams to simulate
-  decay: jpsi_mumu            # which block of decays to simulate
+  n_events: 1000
+  beam: proton                  # which block of beams to simulate
+  decay: null #jpsi_mumu            # which block of decays to simulate
   plot: true                  # write report.pdf in the dataset folder
 
 # ----------------------------------------------
@@ -122,6 +122,8 @@ propagator:
   # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
   input: init_beam/proton_n100000_seed42   # dataset of initial beam, relative to data/ (charged particles)
   seed: 45    # seed for scattering kicks; must differ from the seed of the input
+  n_max: 1000 # number of tracks to propagate, chosen at random from the input (null: all of them).
+              # Must be <= the number of tracks of the input. Write it as an integer (1000, not 1e3)
 
   step: 1.0                   # [mm] RK step (fixed), or initial and maximum step (adaptive)
   adaptive: false             # adaptive steps (error control with the tolerances) instead of fixed ones

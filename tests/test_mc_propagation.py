@@ -8,7 +8,7 @@ from src.constants import JPSI, PROTON
 from src.field import HardEdgeField
 from src.geometry.detectors import DetectorPlanes
 from src.geometry.geometry import Geometry
-from src.montecarlo.propagation import plane_list, propagate_tracks
+from src.montecarlo.propagation import plane_list, propagate_tracks, select_tracks
 from src.montecarlo.tracks import track_table
 from src.propagator.propagator import Propagator, kinetic_energy, momentum
 from src.utils.dataset_io import load_dataset, load_table, save_dataset
@@ -98,6 +98,30 @@ def test_backward_tracks_are_rejected():
     df.loc[0, "pz0"] = -1.0
     with pytest.raises(ValueError, match="backwards"):
         propagate_tracks(df, prop, planes, None)
+
+
+def test_select_tracks_at_random_keeps_order_and_event_id():
+    df = beam([300.0] * 50)
+    chosen = select_tracks(df, 10, np.random.default_rng(0))
+    assert len(chosen) == 10 and chosen["event_id"].is_unique
+    assert chosen["event_id"].is_monotonic_increasing
+    assert set(chosen["event_id"]) <= set(df["event_id"])
+    assert chosen["event_id"].tolist() != list(range(10))          # not just the first ones
+    again = select_tracks(df, 10, np.random.default_rng(0))
+    pd.testing.assert_frame_equal(chosen, again)                   # same seed, same tracks
+
+
+def test_select_tracks_all_of_them():
+    df = beam([300.0] * 5)
+    assert select_tracks(df, None, np.random.default_rng(0)) is df
+    assert len(select_tracks(df, 5, np.random.default_rng(0))) == 5   # n_max = n: all, allowed
+
+
+@pytest.mark.parametrize("n_max, match", [(6, "larger than the number of tracks"), (0, ">= 1"),
+                                          (-1, ">= 0"), (2.5, "integer"), ("1e3", "integer")])
+def test_select_tracks_bad_n_max(n_max, match):
+    with pytest.raises(ValueError, match=match):
+        select_tracks(beam([300.0] * 5), n_max, np.random.default_rng(0))
 
 
 def test_dataset_with_an_extra_table(tmp_path):

@@ -9,7 +9,7 @@
 #
 # Usage (from the repo root):
 #   python -m scripts.generate_propagation                       # uses configs/config.yaml
-#   python -m scripts.generate_propagation --n-max 200           # only the first 200 tracks (quick test)
+#   python -m scripts.generate_propagation --n-max 200           # 200 random tracks (overrides propagator.n_max)
 #   python -m scripts.generate_propagation --input init_beam/proton_n1000_seed1 --name test --overwrite
 
 import argparse
@@ -18,7 +18,7 @@ from pathlib import Path
 import numpy as np
 
 from src.field import build_field
-from src.montecarlo.propagation import plane_list, propagate_tracks
+from src.montecarlo.propagation import plane_list, propagate_tracks, select_tracks
 from src.utils.config_loader import (CONFIG_DIR, get_constant, get_key, load_config, make_detector_planes,
                                      make_geometry, make_propagator)
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, load_dataset, save_dataset
@@ -32,9 +32,9 @@ def main():
     parser.add_argument("--input", default=None,
                         help="dataset of initial tracks, relative to data/ (default: propagator.input)")
     parser.add_argument("--n-max", type=int, default=None,
-                        help="propagate only the first n tracks (default: all)")
+                        help="propagate only n tracks, chosen at random (default: propagator.n_max)")
     parser.add_argument("--name", default=None,
-                        help="dataset folder name (default: <input name>_prop_seed<seed>[_n<n-max>])")
+                        help="dataset folder name (default: <input name>_prop_seed<seed>[_n<n_max>])")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace the dataset folder if it already exists")
     args = parser.parse_args()
@@ -47,9 +47,12 @@ def main():
 
     input_path = args.input or get_key(cfg["propagator"], "input", "propagator")
     seed = get_key(cfg["propagator"], "seed", "propagator")
-    df_tracks, input_metadata = load_dataset(input_path)
-    if args.n_max is not None:
-        df_tracks = df_tracks.iloc[:args.n_max]
+    n_max = args.n_max if args.n_max is not None else get_key(cfg["propagator"], "n_max", "propagator")
+    df_input, input_metadata = load_dataset(input_path)
+
+    # Two independent random streams from the seed: the choice of the tracks and the kicks
+    select_seed, kick_seed = np.random.SeedSequence(seed).spawn(2)
+    df_tracks = select_tracks(df_input, n_max, np.random.default_rng(select_seed))
 
     particles = df_tracks["particle"].unique()
     if len(particles) != 1:
@@ -67,15 +70,16 @@ def main():
     propagator = make_propagator(cfg, geometry, field, particle)
 
     # 3. Propagation (no kicks if the scattering is disabled)
-    rng = np.random.default_rng(seed) if propagator.max_slice is not None else None
-    print(f"Propagating {len(df_tracks)} {particle.name} tracks through {len(planes)} planes "
+    rng = np.random.default_rng(kick_seed) if propagator.max_slice is not None else None
+    print(f"Propagating {len(df_tracks)} of the {len(df_input)} {particle.name} tracks of {input_path} "
+          f"through {len(planes)} planes "
           f"(scattering {'on' if rng is not None else 'off'})")
     states, tracks = propagate_tracks(df_tracks, propagator, planes, rng,
                                       progress_every=max(1, len(df_tracks) // 20))
 
     # 4. Save
     input_name = Path(input_path).name
-    name = args.name or (f"{input_name}_prop_seed{seed}" + (f"_n{args.n_max}" if args.n_max is not None else ""))
+    name = args.name or (f"{input_name}_prop_seed{seed}" + (f"_n{n_max}" if n_max is not None else ""))
     config_path = config_path.resolve()
     if config_path.is_relative_to(REPO_ROOT):
         config_path = config_path.relative_to(REPO_ROOT)
@@ -84,6 +88,8 @@ def main():
         "input": str(input_path),
         "input_created": input_metadata.get("created"),
         "seed": seed,
+        "n_input_tracks": len(df_input),
+        "n_max": n_max,                     # null: all the tracks; else chosen at random (seed)
         "n_tracks": len(tracks),
         "n_stopped": int(tracks["stopped"].sum()),
         "particle": particle.name,

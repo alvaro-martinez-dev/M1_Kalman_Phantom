@@ -23,6 +23,26 @@ import pandas as pd
 
 from src.geometry.geometry import TOL
 from src.propagator.propagator import State, kinetic_energy
+from src.utils.validation import check_count
+
+
+# df_tracks: track table
+# n_max: number of tracks to keep, chosen at random without replacement, or None for all of them
+# rng: numpy Generator for the choice
+# Returns: the chosen rows, in their original order (event_id kept, so they can be found in the input)
+def select_tracks(df_tracks, n_max, rng):
+
+    if n_max is None:
+        return df_tracks
+    n_max = check_count("n_max", n_max)
+    if n_max == 0:
+        raise ValueError("n_max must be >= 1 (or null to propagate all the tracks)")
+    if n_max > len(df_tracks):
+        raise ValueError(f"n_max = {n_max} is larger than the number of tracks of the input "
+                         f"({len(df_tracks)}): use n_max <= {len(df_tracks)}, or null for all of them")
+
+    rows = np.sort(rng.choice(len(df_tracks), size=n_max, replace=False))
+    return df_tracks.iloc[rows].reset_index(drop=True)
 
 
 # detectors: DetectorPlanes
