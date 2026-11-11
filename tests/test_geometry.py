@@ -214,6 +214,12 @@ def test_merged_regions_keep_the_number_of_free_planes():
     assert len(no_magnet.z_free_planes) == 1 + (2 + 3)      # n_inside_magnet ignored
     assert len(nothing.z_free_planes) == 1 + 2 + 3
 
+    # inside_phantom / n_inside_magnet and the boundary planes disappear with their element
+    assert len(no_phantom.z_phantom_layers) == 0
+    assert len(no_phantom.compute_z_detector_planes()) == 2 + 7            # magnet start/end + free
+    assert len(no_magnet.compute_z_detector_planes()) == 2 + 6             # phantom start/end + free
+    assert len(nothing.compute_z_detector_planes()) == 6
+
     names = no_phantom.named_planes()
     assert list(names)[:4] == ["D_before_magnet_1", "D_before_magnet_2", "D_before_magnet_3", "D_magnet_start"]
     assert names["D_before_magnet_1"] == pytest.approx(100.0)
