@@ -8,7 +8,7 @@ Units in constants.py:
 """
 import math
 import numpy as np
-from src.constants import alpha, e_charge, hbarc, tesla, k
+from src.constants import alpha, e_charge, hbarc, tesla, k, kappa
 
 
 class TestFundamentalConstants:
@@ -55,6 +55,15 @@ class TestKappa:
         kappa_PDF = 2.998e-4
         kappa_converted = k * tesla / 1000.0
         assert abs(kappa_converted - kappa_PDF) / kappa_PDF < 1e-3
+
+    def test_kappa_equals_k_times_tesla(self):
+        """kappa [MeV/(T*mm)] used with B in tesla is the same as k with B in MeV^2."""
+        assert abs(kappa / (k * tesla) - 1.0) < 1e-4
+
+    def test_bending_radius_with_kappa(self):
+        """r = p / (kappa * B): p = 560 MeV in B = 1 T gives r ~ 1.87 m."""
+        r_m = 560.0 / (kappa * 1.0) / 1000.0
+        assert abs(r_m - 1.87) < 0.05
 
     def test_bending_radius_at_560MeV(self):
         """p = 560 MeV in B = 1 T gives r ~ 1.87 m (sanity check from PDF)."""

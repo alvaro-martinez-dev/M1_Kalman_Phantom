@@ -6,7 +6,7 @@ each y, the two wires (one per plate) are connected by return paths
 at z = z_start and z = z_end, forming a closed rectangular loop in
 the xz plane. All loops carry the same unit current (mu0 = I = 1);
 the total field is then rescaled so that By at the magnet centre
-equals B0_nat.
+equals B0 [T].
 """
 import numpy as np
 from .base import MagneticField
@@ -44,8 +44,7 @@ class BiotSavartField(MagneticField):
     """Field from two parallel current sheets with return paths.
 
     Args:
-        B0_nat: target field magnitude at the centre, in natural units
-            (same convention as HardEdgeField.B0_nat, see constants.py).
+        B0: target field magnitude at the centre [T].
         z_start: entrance plane of the magnet [mm].
         length: magnet length along z [mm].
         half_gap: plates located at x = +/- half_gap [mm].
@@ -53,8 +52,8 @@ class BiotSavartField(MagneticField):
         n_filaments: number of wires used to discretise each plate.
     """
 
-    def __init__(self, B0_nat, z_start, z_length, x_half_gap, y_height, n_filaments):
-        self.B0_nat = B0_nat                         #here we save the geometry
+    def __init__(self, B0, z_start, z_length, x_half_gap, y_height, n_filaments):
+        self.B0 = B0                        #here we save the geometry
         self.z_start = z_start
         self.z_end = z_start + z_length
         self.x_half_gap = x_half_gap
@@ -66,7 +65,7 @@ class BiotSavartField(MagneticField):
         by_unit = self._raw_By(np.array([0.0]), np.array([z_centre]))[0]
         if abs(by_unit) < 1e-300:
             raise ValueError("Unit field at centre is zero; check geometry.")
-        self._scale = self.B0_nat / by_unit          #scalar factor, that bc of the linear dependence on I of the magnetic field avoid us not to know I, we can just set a target B0
+        self._scale = self.B0 / by_unit          #scalar factor, that bc of the linear dependence on I of the magnetic field avoid us not to know I, we can just set a target B0
 
     def _build_loops(self):                          #here we actually build the loop
         """Return the (p1, p2) segment pairs of every filament loop."""
@@ -99,7 +98,7 @@ class BiotSavartField(MagneticField):
         return total[..., 1]            #output is ONLY y component
 
     def B(self, x, y, z):
-        """Return the field vector in natural units, shape (..., 3).
+        """Return the field vector in T, shape (..., 3).
 
         Only By is modelled (Bx, Bz are left at zero, as in HardEdgeField).
         The y argument is ignored: the field is evaluated at y = 0, the

@@ -26,7 +26,7 @@ Z_END = Z_START + Z_LENGTH           # exit plane            [mm, z]
 Z_CENTRE = Z_START + Z_LENGTH / 2.0  # magnet centre         [mm, z]
 
 field = BiotSavartField(
-    B0_nat=1.0, z_start=Z_START, z_length=Z_LENGTH,
+    B0=1.0, z_start=Z_START, z_length=Z_LENGTH,
     x_half_gap=X_HALF_GAP, y_height=Y_HEIGHT, n_filaments=20,
 )
 
@@ -53,7 +53,7 @@ ax1.axvline(Z_END, ls="--", c="gray")
 ax1.axvspan(Z_CENTRE - 100, Z_CENTRE + 100, color="green", alpha=0.08,
             label="uniformity window")
 ax1.set_xlabel("z [mm]")
-ax1.set_ylabel("By [MeV^2]")
+ax1.set_ylabel("By [T]")
 ax1.set_title("By lungo z")
 ax1.legend()
 
@@ -61,7 +61,7 @@ ax2.plot(x, by_x, c="C2")
 ax2.axvspan(-25, 25, color="orange", alpha=0.1, label="proton region |x| < 25 mm")
 ax2.axhline(by_centre, ls=":", c="gray")
 ax2.set_xlabel("x [mm]")
-ax2.set_ylabel("By [MeV^2]")
+ax2.set_ylabel("By [T]")
 ax2.set_title("By lungo x a z = 550 mm")
 ax2.legend()
 

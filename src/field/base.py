@@ -1,6 +1,6 @@
 """Abstract interface for all magnetic field models.
 
-Units: positions in mm, field in MeV^2 (natural units, see constants.py).
+Units: positions in mm, field in tesla.
 """
 from abc import ABC, abstractmethod
 import numpy as np
@@ -17,7 +17,7 @@ class MagneticField(ABC):
             x, y, z: positions in mm (scalars or broadcastable arrays).
 
         Returns:
-            Array of shape (..., 3) with the field in MeV^2.
+            Array of shape (..., 3) with the field in T.
         """
 
     def By(self, x, z):

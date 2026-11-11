@@ -115,3 +115,8 @@ e_charge = np.sqrt(4 * np.pi * alpha)
 hbarc = 1.97326980e-10      # ħc [MeV·mm]
 tesla = 1.95353e-10        # 1 T = 195.35 eV² [MeV²]
 k = e_charge / hbarc          # e/ħc [MeV⁻¹·mm⁻¹]
+
+# Magnetic fields are given in tesla throughout the code. The equation of motion
+# uses kappa = e*c in practical units: p[MeV] = kappa * q[e] * B[T] * r[mm].
+# It is the same number as k * tesla (checked in tests/test_constants.py).
+kappa = 0.299792458         # [MeV/(T·mm)]

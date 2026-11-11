@@ -207,7 +207,7 @@ EPS = 1e-9  # keeps the end of a section strictly on one side of the discontinui
 
 
 def magnet_rhs():
-    field = HardEdgeField(B0_nat=1.0, z_start=Z_IN, length=Z_OUT - Z_IN, half_gap=1e9)
+    field = HardEdgeField(B0=1.0, z_start=Z_IN, length=Z_OUT - Z_IN, half_gap=1e9)
     return lambda z, x, xp: -KAPPA * field.By(x, z) * (1 + xp**2)**1.5
 
 

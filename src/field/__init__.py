@@ -7,7 +7,6 @@ from .base import MagneticField
 from .hard_edge import HardEdgeField
 from .biot_savart import BiotSavartField
 from .interpolated import InterpolatedField
-from ..constants import tesla
 
 
 def build_field(cfg: dict) -> MagneticField:
@@ -15,19 +14,17 @@ def build_field(cfg: dict) -> MagneticField:
 
     Args:
         cfg: full config dict, as returned by src.utils.config_loader.load_config.
-            The magnet block is read from cfg["geometry"]["magnet"], where B0 is
-            given in tesla; it is converted here to natural units (MeV^2).
+            The magnet block is read from cfg["geometry"]["magnet"] (B0 in tesla).
 
     If interpolation is enabled, the source field is tabulated on a grid
     and the returned object is an InterpolatedField.
     """
     m = cfg["geometry"]["magnet"]
-    B0_nat = m["B0"] * tesla        # [T] -> [MeV^2]
 
     if m["model"] == "hard_edge":
-        src = HardEdgeField(B0_nat, m["z_start"], m["z_length"], m["x_half_gap"])
+        src = HardEdgeField(m["B0"], m["z_start"], m["z_length"], m["x_half_gap"])
     elif m["model"] == "biot_savart":
-        src = BiotSavartField(B0_nat, m["z_start"], m["z_length"],
+        src = BiotSavartField(m["B0"], m["z_start"], m["z_length"],
                               m["x_half_gap"], m["y_height"],
                               m["biot_savart"]["n_filaments"])
     else:

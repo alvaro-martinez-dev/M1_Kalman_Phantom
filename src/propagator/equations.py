@@ -1,6 +1,6 @@
 # Equations of motion for different regions to propagate the particle
 
-from src.constants import k
+from src.constants import kappa as KAPPA   # [MeV/(T·mm)], field.By in T, p in MeV
 
 def eom():
     def eom_free_space(tx):
@@ -8,9 +8,9 @@ def eom():
             return x0 + tx*(z-z0)
         return x_free_space
 
-    def eom_magnet(field, particle, p, kappa=k): #xprime = tx = dx/dz
+    def eom_magnet(field, particle, p, kappa=KAPPA): #xprime = tx = dx/dz
         def fun_magnet(z, x, xprime):
-            return -kappa * (particle.charge/p) * (1+xprime)**(1.5) *field.By(x,z)
+            return -kappa * (particle.charge/p) * (1+xprime**2)**(1.5) *field.By(x,z)
         return fun_magnet
 
     def eom_phantom():
