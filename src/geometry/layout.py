@@ -2,9 +2,63 @@
 # detector planes), with the region and material on each side. It is meant to be saved and
 # inspected to check that the positions have been generated as expected
 
+import hashlib
+import json
+
 import pandas as pd
 
 from .geometry import Geometry, TOL
+
+HASH_LENGTH = 6   # hex characters of the layout hash in the folder name
+
+
+# Parameters that define the layout, already validated and normalised by Geometry and
+# DetectorPlanes (eg 100 and 100.0 give the same value). Field parameters (B0, model...)
+# and sigma_x are left out: they do not change the layout.
+# A disabled phantom/magnet has its parameters at None.
+# x_half_gap: transverse size of the magnet, drawn in the report (None without magnet)
+# Returns: dict
+def layout_parameters(geometry, detectors, x_half_gap):
+
+    return {
+        "z_start_phantom": geometry.z_start_phantom,
+        "phantom_layers": geometry.phantom_layers,
+        "z_start_magnet": geometry.z_start_magnet,
+        "z_length_magnet": geometry.z_length_magnet,
+        "x_half_gap": x_half_gap if geometry.has_magnet else None,
+        "spacing_after_last": geometry.spacing_after_last,
+        "placement": None if detectors is None else {
+            "n_before_phantom": detectors.n_before_phantom,
+            "n_after_phantom_before_magnet": detectors.n_after_phantom_before_magnet,
+            "n_after_magnet": detectors.n_after_magnet,
+            "inside_phantom": detectors.inside_phantom,
+            "n_inside_magnet": detectors.n_inside_magnet,
+        },
+    }
+
+
+# Deterministic hash of the layout parameters: same parameters -> same hash, any change -> another
+# Returns: the first HASH_LENGTH hex characters of the sha256 of the parameters as sorted json
+def layout_hash(parameters):
+
+    text = json.dumps(parameters, sort_keys=True)
+    return hashlib.sha256(text.encode()).hexdigest()[:HASH_LENGTH]
+
+
+# Name of the folder of data/geometry/ of a layout (scripts/generate_layout.py):
+#   layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>
+# Returns: (name, parameters, hash), so a propagation can record which layout it was made on
+def layout_name(geometry, detectors, x_half_gap):
+
+    table = layout_table(geometry, detectors)
+    n_detectors = int(table["is_detector"].sum())
+    n_layers = len(geometry.phantom_layers)
+    n_phantom_detectors = len(detectors.z_phantom_layers) if detectors else 0
+    n_magnet_detectors = detectors.n_inside_magnet if detectors and geometry.has_magnet else 0
+    parameters = layout_parameters(geometry, detectors, x_half_gap)
+    hash_ = layout_hash(parameters)
+    name = f"layout_{n_detectors}Det_{n_layers}Lay{n_phantom_detectors}PhDet_{n_magnet_detectors}MagDet_{hash_}"
+    return name, parameters, hash_
 
 
 def _merge_close(points):

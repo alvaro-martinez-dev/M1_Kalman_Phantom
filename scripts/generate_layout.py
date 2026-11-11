@@ -20,54 +20,16 @@
 #   python -m scripts.generate_layout --config my_config --overwrite
 
 import argparse
-import hashlib
-import json
 from datetime import datetime
 from pathlib import Path
 
 import yaml
 
 from plotting.plot_layout import REPORT_NAME, load_layout, plot_layout
-from src.geometry.layout import layout_table
+from src.geometry.layout import layout_name, layout_table
 from src.utils.config_loader import CONFIG_DIR, get_key, load_config, make_detector_planes, make_geometry
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, git_state
 from src.utils.validation import check_real
-
-
-HASH_LENGTH = 6   # hex characters of the layout hash in the folder name
-
-
-# Parameters that define the layout, already validated and normalised by Geometry and
-# DetectorPlanes (eg 100 and 100.0 give the same value). Field parameters (B0, model...)
-# and sigma_x are left out: they do not change the layout.
-# A disabled phantom/magnet has its parameters at None.
-# x_half_gap: transverse size of the magnet, drawn in the report (None without magnet)
-# Returns: dict
-def layout_parameters(geometry, detectors, x_half_gap):
-
-    return {
-        "z_start_phantom": geometry.z_start_phantom,
-        "phantom_layers": geometry.phantom_layers,
-        "z_start_magnet": geometry.z_start_magnet,
-        "z_length_magnet": geometry.z_length_magnet,
-        "x_half_gap": x_half_gap if geometry.has_magnet else None,
-        "spacing_after_last": geometry.spacing_after_last,
-        "placement": None if detectors is None else {
-            "n_before_phantom": detectors.n_before_phantom,
-            "n_after_phantom_before_magnet": detectors.n_after_phantom_before_magnet,
-            "n_after_magnet": detectors.n_after_magnet,
-            "inside_phantom": detectors.inside_phantom,
-            "n_inside_magnet": detectors.n_inside_magnet,
-        },
-    }
-
-
-# Deterministic hash of the layout parameters: same parameters -> same hash, any change -> another
-# Returns: the first HASH_LENGTH hex characters of the sha256 of the parameters as sorted json
-def layout_hash(parameters):
-
-    text = json.dumps(parameters, sort_keys=True)
-    return hashlib.sha256(text.encode()).hexdigest()[:HASH_LENGTH]
 
 
 def main():
@@ -105,11 +67,7 @@ def main():
     n_magnet_detectors = detectors.n_inside_magnet if detectors and geometry.has_magnet else 0
     x_half_gap = check_real("x_half_gap", get_key(geometry_cfg, "magnet.x_half_gap", "geometry"),
                             minimum=0.0, strict=True)
-    parameters = layout_parameters(geometry, detectors, x_half_gap)
-    hash_ = layout_hash(parameters)
-
-    name = (f"layout_{n_detectors}Det_{n_layers}Lay{n_phantom_detectors}PhDet_"
-            f"{n_magnet_detectors}MagDet_{hash_}")
+    name, parameters, hash_ = layout_name(geometry, detectors, x_half_gap)
     out_dir = DATA_DIR / "geometry" / name
     if out_dir.exists() and any(out_dir.iterdir()):
         if not args.overwrite:

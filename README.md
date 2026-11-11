@@ -94,18 +94,14 @@ To redo only the plot report of an existing dataset:
 python -m plotting.plot_init_beam init_beam/proton_n100000_seed42
 ```
 
-To load it in a notebook:
-
-```python
-from src.utils.dataset_io import load_dataset
-df, cfg = load_dataset("init_beam/proton_n100000_seed42")
-```
-
-### (3) Generate system and detector layout
+### (3) Generate system and detector layout (optional, visual check)
 
 ```bash
 python -m scripts.generate_layout
 ```
+
+This step is only a visual check of the geometry: nothing else reads its output. The
+propagation of step (4) builds the geometry from the yaml by itself, so this step can be skipped.
 
 Builds the geometry (phantom, phantom interfaces, magnet) and the detector planes from the
 `geometry` block of `configs/config.yaml` and saves the layout along z in
@@ -140,18 +136,6 @@ python -m scripts.generate_layout --no-plot            # layout only
 python -m plotting.plot_layout geometry/layout_11Det_2Lay0PhDet_2MagDet_4b77bc   # redo only the report
 ```
 
-To build the same table in a notebook:
-
-```python
-from src.utils.config_loader import load_config, make_geometry, make_detector_planes
-from src.geometry.layout import layout_table
-
-cfg = load_config("config")["geometry"]
-geometry = make_geometry(cfg)
-detectors = make_detector_planes(geometry, cfg["detector_planes"])
-table = layout_table(geometry, detectors)   # layout_table(geometry) for no detectors
-```
-
 ### (4) Propagate the tracks through the system (Monte Carlo truth)
 
 ```bash
@@ -182,29 +166,44 @@ tracks and one for the kicks. The chosen tracks keep their order and their `even
 
 The output goes to `data/propagation/<input name>_prop_seed<seed>[_n<n-max>]/`:
 
-- `tracks.parquet`: one row per track: `stopped`, final state (`z_final`, `x_final`, `tx_final`,
-  `q_over_p_final`, `T_final`) and `n_planes`, the number of planes it reached
-- `states.parquet`: one row per (track, plane reached): `track_id`, `event_id`, `plane_index`,
+- `tracks.parquet`: one row per track: `input_row` (its row in the input dataset), `event_id`,
+  `stopped`, final state (`z_final`, `x_final`, `tx_final`, `q_over_p_final`, `T_final`) and
+  `n_planes`, the number of planes it reached
+- `states.parquet`: one row per (track, plane reached): `track_id`, `input_row`, `event_id`, `plane_index`,
   `plane`, `z`, `x`, `tx`, `q_over_p`, `T`. A track that stops in the phantom has no rows after
   it stops, so the absorption shows as fewer tracks in the later planes
 - `metadata.yml`: date, git commit, input dataset, seed, `n_max`, the detector planes (name and
-  z) and the `geometry` and `propagator` blocks used
+  z), `layout_name` / `layout_hash` (the folder of step (3) with this geometry, the one
+  `generate_layout` writes for it) and the `geometry` and `propagator` blocks used
+- `tracks_on_layout.pdf`: 5 random tracks drawn on the schematic of the system, as their full
+  trajectory plus their true state at each plane, if `run.plot` is `true`
+
+The geometry is the `geometry` block of the yaml, as in step (3). The layout folder of step (3)
+is not needed: the plot rebuilds the schematic from the metadata of the dataset, so the tracks
+are always drawn on the system they were propagated in.
 
 Options: `--config <name or path>`, `--input <dataset>` (default: `propagator.input`),
-`--n-max <n>` (default: `propagator.n_max`), `--name <folder>`, `--overwrite`.
+`--n-max <n>` (default: `propagator.n_max`), `--name <folder>`, `--overwrite`,
+`--plot`/`--no-plot` (default: `run.plot`).
 
 Speed: about 70 ms per track that crosses the whole system with `step: 1.0` (100 000 tracks
 take about 2 hours), so start with a small `n_max`. Only charged particles of a single species, going
 forwards (`pz0 > 0`), can be propagated: a neutral beam (e.g. `jpsi`) leaves no hits.
 
-To load it in a notebook:
+Each track has its own random stream for the kicks (from `propagator.seed` and its row in the
+input), so any track can be propagated again on its own and it is exactly the same track.
 
-```python
-from src.utils.dataset_io import load_dataset, load_table
-tracks, metadata = load_dataset("propagation/proton_n100000_seed42_prop_seed45_n1000")
-states = load_table("propagation/proton_n100000_seed42_prop_seed45_n1000", "states")
-states.groupby("plane", sort=False)["x"].std()      # spread of x at each plane
+The plot propagates the chosen tracks again with many points (the dataset only has the
+states at the planes) and checks that they match the dataset at the planes. To redo only the
+plot of an existing dataset, or with other options:
+
+```bash
+python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n1000
+python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n1000 --n-tracks 7 --seed 3
 ```
+
+Options: `--n-tracks <1-7>` (default 5), `--seed <n>` (choice of the tracks, default 0),
+`--dz <mm>` (spacing of the points of the trajectory, default 2), `--out <pdf>`.
 
 ### Tests
 
@@ -241,11 +240,12 @@ M1_Kalman_Phantom/
 │   ├── generate_layout.py
 │   ├── generate_propagation.py
 │   └── check_biot_savart.py
-├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout)
+├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks)
 ├── data/                    generated outputs, one folder per run
 │   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
 │   ├── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
-│   └── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml
+│   └── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml,
+│                            tracks_on_layout.pdf
 ├── notebooks/               exploration and validation
 ├── tests/                   pytest tests (python -m pytest)
 ├── pdf_info/                project proposal, concept figure and guides

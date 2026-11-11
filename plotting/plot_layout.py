@@ -95,6 +95,18 @@ def page_schematic(table, metadata):
     grid = fig.add_gridspec(3, 3, width_ratios=MARGIN_RATIOS, height_ratios=MARGIN_RATIOS)
     ax = fig.add_subplot(grid[1, 1])
 
+    handles = draw_layout(ax, table, metadata)
+    ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=min(len(handles), LEGEND_COLUMNS),
+              fontsize=8, frameon=False)
+
+    return fig
+
+
+# Schematic of the system along z on ax: phantom layers, magnet, detector planes and boundaries,
+# axes. Reused by other plots that draw on top of it (e.g. plot_tracks)
+# Returns: the legend handles (the caller places the legend)
+def draw_layout(ax, table, metadata):
+
     x_half_gap = metadata["geometry"]["magnet"]["x_half_gap"]
 
     # 1. Regions: phantom layers coloured by material (no finite x size: they fill the plot),
@@ -147,10 +159,8 @@ def page_schematic(table, metadata):
     handles += [Line2D([], [], color=COLOR_MUTED, linewidth=0.8, linestyle=":", label="beam axis (x = 0)"),
                 Line2D([], [], color=COLOR_TEXT, linewidth=1.2, label="detector plane"),
                 Line2D([], [], color=COLOR_MUTED, linewidth=1, linestyle="--", label="boundary, no detector")]
-    ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.08), ncol=min(len(handles), LEGEND_COLUMNS),
-              fontsize=8, frameon=False)
 
-    return fig
+    return handles
 
 
 # Page 2: the layout table

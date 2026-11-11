@@ -1,5 +1,5 @@
-created: '2026-11-11T19:53:04'
-git_commit: 065cb5ebb6c54adba8af65e4d7913751952d85de
+created: '2026-11-11T20:24:54'
+git_commit: 78f6047ab115b875ce6782b5a2ed594e040ffcc4
 git_uncommitted_changes: true
 n_rows: 1000
 config_source: configs\config.yaml
@@ -11,6 +11,8 @@ n_max: 1000
 n_tracks: 1000
 n_stopped: 0
 particle: p
+layout_name: layout_10Det_2Lay1PhDet_1MagDet_5fa9fe
+layout_hash: 5fa9fe
 planes:
 - name: D_before_phantom_1
   z: 25.0

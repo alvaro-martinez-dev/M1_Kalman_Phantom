@@ -42,6 +42,16 @@ def get_constant(name):
     return getattr(constants, name)
 
 
+# particle_name: Particle.name as stored in a track table (e.g. "p", "mu-")
+# Returns: the Particle of src/constants.py with that name
+def particle_by_name(particle_name):
+
+    for value in vars(constants).values():
+        if isinstance(value, constants.Particle) and value.name == particle_name:
+            return value
+    raise ValueError(f"No Particle named {particle_name!r} in src/constants.py")
+
+
 # beam_cfg: one block of beams.<name> in the yaml
 # Returns: Initial_Beam built from it
 def make_beam(beam_cfg):

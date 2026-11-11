@@ -76,7 +76,7 @@ def save_dataset(df, out_dir, params, overwrite=False, tables=None):
     return out_dir
 
 
-def _dataset_path(path):
+def dataset_path(path):
     path = Path(path)
     if not path.is_absolute() and not path.exists():
         path = DATA_DIR / path
@@ -87,7 +87,7 @@ def _dataset_path(path):
 # Returns: (track DataFrame, metadata dict)
 def load_dataset(path):
 
-    path = _dataset_path(path)
+    path = dataset_path(path)
     df = pd.read_parquet(path / "tracks.parquet")
     with open(path / "metadata.yml") as f:
         metadata = yaml.safe_load(f)
@@ -100,4 +100,4 @@ def load_dataset(path):
 # Returns: DataFrame of <name>.parquet
 def load_table(path, name):
 
-    return pd.read_parquet(_dataset_path(path) / f"{name}.parquet")
+    return pd.read_parquet(dataset_path(path) / f"{name}.parquet")
