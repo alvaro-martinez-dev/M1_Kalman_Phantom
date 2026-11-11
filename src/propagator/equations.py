@@ -14,22 +14,44 @@ def propagate_free_space(x0, tx, z0, z1):
     return x0 + tx * (z1 - z0), tx
 
 
-def eom_magnet(field, q_p, particle: Particle = PROTON, kappa=KAPPA):
-    """x'' = f(z, x, x'); |p| is constant inside the field."""
+def eom_magnet(field, q_p, particle: Particle = PROTON, kappa=KAPPA, x_half_gap=np.inf):
+    """x'' = f(z, x, x'); |p| is constant inside the field.
+
+    For |x| > x_half_gap (outside the gap between the plates) the field is taken as zero,
+    so the track there is a straight line.
+    """
     def fun_magnet(z, x, xprime):
-        return -kappa * q_p * (1 + xprime**2)**1.5 * field.By(x, z)
+        By = np.where(np.abs(x) <= x_half_gap, field.By(x, z), 0.0)
+        return -kappa * q_p * (1 + xprime**2)**1.5 * By
     return fun_magnet
 
 
-def eom_phantom(tx, material: Material, particle: Particle = PROTON):
-    """(q/p)' = f(z, q/p); tx is constant (multiple scattering is added apart)."""
-    q, m = particle.charge, particle.mass
-    path_factor = np.sqrt(1 + tx**2)              # ds/dz
+# This is the eom for the phantom but assuming that there can be a remaining field from the magnet
+# still present !!!
+def eom_phantom_field(field, material: Material, particle: Particle = PROTON, kappa=KAPPA,
+                      x_half_gap=np.inf):
+    """y' = f(z, y) with y = (x, tx, q/p): energy loss and magnetic field at the same time.
 
-    def fun_phantom(z, q_p):
+        x'   = tx
+        tx'  = -kappa (q/p) (1 + tx^2)^(3/2) By(x, z)
+        q/p' = (1/q) (q/p)^2 (S / beta) sqrt(1 + tx^2),    S = -dE/ds > 0 (Bethe-Bloch)
+
+    Nothing is constant: the curvature grows as the particle slows down, and the path length
+    per unit z changes as tx changes. For |x| > x_half_gap the field is taken as zero.
+    """
+    q, m = particle.charge, particle.mass
+
+    def fun_phantom_field(z, y):
+        x, tx, q_p = y
+        By = field.By(x, z) if abs(x) <= x_half_gap else 0.0
         p = q / q_p
         E = np.sqrt(p**2 + m**2)
         beta = abs(p) / E
         S = bethe_bloch(E - m, material, particle)  # -dE/ds > 0 [MeV/mm]
-        return (q_p**2 / q) * S / beta * path_factor
-    return fun_phantom
+        path_factor = np.sqrt(1 + tx**2)            # ds/dz
+        return np.array([
+            tx,
+            -kappa * q_p * path_factor**3 * By,
+            (q_p**2 / q) * S / beta * path_factor,
+        ])
+    return fun_phantom_field

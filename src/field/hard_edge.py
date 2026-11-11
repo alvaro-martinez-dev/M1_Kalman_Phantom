@@ -24,6 +24,9 @@ class HardEdgeField(MagneticField):
         self.z_end = z_start + length
         self.half_gap = half_gap
 
+    def z_discontinuities(self):
+        return (self.z_start, self.z_end)
+
     def B(self, x, y, z):
         """Return the field vector in T, shape (..., 3)."""
         x, y, z = np.broadcast_arrays(*map(np.asarray, (x, y, z)))

@@ -46,6 +46,10 @@ class InterpolatedField(MagneticField):
         grid = source.By(xs[:, None], zs[None, :])   # shape (nx, nz)
         return cls(xs, zs, grid)
 
+    def z_discontinuities(self):
+        """The field is set to zero outside the grid, so it can jump at both ends of it."""
+        return (float(self._zs[0]), float(self._zs[-1]))
+
     def B(self, x, y, z):
         """Return the field vector in T, shape (..., 3).
 

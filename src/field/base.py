@@ -20,6 +20,14 @@ class MagneticField(ABC):
             Array of shape (..., 3) with the field in T.
         """
 
+    def z_discontinuities(self):
+        """z values [mm] where the field jumps (e.g. hard edges, end of a field map).
+
+        The propagator cuts the integration there, so that no RK step crosses a jump.
+        Default: none (smooth field).
+        """
+        return ()
+
     def By(self, x, z):
         """Return the By component at y = 0.
 

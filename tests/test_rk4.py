@@ -353,6 +353,21 @@ def test_rk4_adaptive_every_stored_step_satisfies_tol(h0):
         assert x_new == pytest.approx(x[k + 1], abs=1e-12)
 
 
+def test_rk4_adaptive_tol_per_component():
+    """With one tol per component, each component of every step satisfies its own tol."""
+    rhs = lambda z, x: np.array([oscillator_rhs(z, x[:2])[0], oscillator_rhs(z, x[:2])[1] * 1e-3])
+    tol = np.array([1e-8, 1e-11])
+    z, x = rk4(lambda z, x: rhs(z, x), 0.0, 5.0, [1.0, 0.0], 0.1, adaptative=True, tol=tol)
+    for k in range(len(z) - 1):
+        _, err, _ = rk45_terms(rhs, z[k], x[k], z[k + 1] - z[k], rhs(z[k], x[k]))
+        assert np.all(err <= tol * (1 + 1e-6))
+
+
+def test_rk4_adaptive_rejects_non_positive_tol_component():
+    with pytest.raises(ValueError):
+        rk4(oscillator_rhs, 0.0, 1.0, [1.0, 0.0], 0.1, adaptative=True, tol=np.array([1e-6, 0.0]))
+
+
 def test_rk4_adaptive_reuses_k1():
     """Each attempted step costs 6 new evaluations, plus 1 for the very first k1."""
     calls = [0]

@@ -144,7 +144,9 @@ def rk45_terms(fun, zn, xn, h, k1):
 def rk4(fun, z0, z_end, x0, h, adaptative=False, tol=None,
         h_min=1e-6, h_max=np.inf, safety=0.9, fac_min=0.2, fac_max=5.0):
     # h: step length if adaptative=False, initial guess if adaptative=True
-    # tol, h_min, h_max, safety, fac_min, fac_max: same meaning as in rkn
+    # tol: maximum local error, a scalar or one value per component of x (useful when the
+    #      components have different units/scales, e.g. x [mm], tx, q/p [e/MeV])
+    # h_min, h_max, safety, fac_min, fac_max: same meaning as in rkn
 
     if h <= 0:
         raise ValueError(f"h must be > 0, got {h}")
@@ -164,8 +166,9 @@ def rk4(fun, z0, z_end, x0, h, adaptative=False, tol=None,
         return vec_z, vec_x
 
     # ----- Adaptive step: RK45 -----
-    if tol is None or tol <= 0:
+    if tol is None or np.any(np.asarray(tol) <= 0):
         raise ValueError(f"tol must be > 0 when adaptative=True, got {tol}")
+    tol = np.asarray(tol, dtype=float)
 
     direction = np.sign(z_end - z0)
     h_next = min(h, h_max)
@@ -178,20 +181,20 @@ def rk4(fun, z0, z_end, x0, h, adaptative=False, tol=None,
         h_try = min(h_next, remaining)
 
         x_new, local_err, k7 = rk45_terms(fun, z, x, direction * h_try, k1)
-        err = np.max(local_err)
+        err = np.max(local_err / tol)    # worst component relative to its tolerance: accept if <= 1
         if np.isnan(err):    # reject the step and reduce h instead of looping forever
             err = np.inf
 
-        if err <= tol:
+        if err <= 1.0:
             z = z_end if h_try == remaining else z + direction * h_try
             x, k1 = x_new, k7    # k7 of this step is k1 of the next one
             vec_z.append(z)
             vec_x.append(x)
         elif h_try <= h_min:
-            raise RuntimeError(f"Tolerance not reached at z={z}: err={err}, h={h_try}")
+            raise RuntimeError(f"Tolerance not reached at z={z}: err/tol={err}, h={h_try}")
 
         # local_err scales as h^5, hence the exponent 1/5
-        factor = fac_max if err == 0 else np.clip(safety * (tol / err)**0.2, fac_min, fac_max)
+        factor = fac_max if err == 0 else np.clip(safety * (1.0 / err)**0.2, fac_min, fac_max)
         h_next = np.clip(h_try * factor, h_min, h_max)
 
     return np.array(vec_z), np.array(vec_x)
