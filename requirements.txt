@@ -1,4 +1,6 @@
 # Requires Python 3.12
+# BLAS/LAPACK: the numpy wheels from pip already bundle OpenBLAS, nothing to pin here.
+# (With conda use environment.yml, which pins libblas to OpenBLAS: the MKL backend crashes numpy.linalg)
 numpy>=2.3
 scipy>=1.16
 matplotlib>=3.10

@@ -3,6 +3,7 @@ channels:
   - conda-forge
 dependencies:
   - python=3.12
+  - libblas=*=*openblas       # BLAS/LAPACK backend of numpy: the MKL one crashes numpy.linalg on Windows here
   - numpy>=2.3
   - scipy>=1.16
   - matplotlib>=3.10
