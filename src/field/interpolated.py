@@ -24,6 +24,18 @@ class InterpolatedField(MagneticField):
     def __init__(self, xs, zs, By_grid):
         self._xs, self._zs = xs, zs
         self._spline = RectBivariateSpline(xs, zs, By_grid, kx=3, ky=3)
+        # limits of the grid as Python floats, for the scalar path of By
+        self._x_max = float(max(abs(xs[0]), abs(xs[-1])))
+        self._z_lo, self._z_hi = float(zs[0]), float(zs[-1])
+
+    def By(self, x, z):
+        """By [T] at y = 0. Scalars (the propagator, at every RK stage) skip the array
+        handling of B, which costs more than the spline itself; arrays go through B."""
+        if np.ndim(x) == 0 and np.ndim(z) == 0:
+            if abs(x) > self._x_max or not self._z_lo <= z <= self._z_hi:
+                return 0.0
+            return float(self._spline.ev(x, z))
+        return super().By(x, z)
 
     @classmethod
     def from_field(cls, source, x_max, z_min, z_max, dx, dz):

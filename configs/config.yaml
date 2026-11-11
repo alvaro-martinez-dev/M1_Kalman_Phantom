@@ -80,8 +80,8 @@ geometry:
     enabled: true
     z_start: 50.0            # [mm] entrance of the first layer
     layers:                   # in beam order; material = Material in src/constants.py
-      - {material: WATER, thickness: 200.0}
-      - {material: BONE, thickness: 100.0}
+      - {material: WATER, thickness: 100.0}
+      - {material: BONE, thickness: 50.0}
 
   magnet:
     enabled: true             # false: no magnet and no field (straight lines in vacuum)
@@ -119,6 +119,10 @@ geometry:
 # -------------------------------------------------------------------
 
 propagator:
+  # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
+  input: init_beam/proton_n100000_seed42   # dataset of initial beam, relative to data/ (charged particles)
+  seed: 45    # seed for scattering kicks; must differ from the seed of the input
+
   step: 1.0                   # [mm] RK step (fixed), or initial and maximum step (adaptive)
   adaptive: false             # adaptive steps (error control with the tolerances) instead of fixed ones
   tolerances:                 # local error allowed per step (only if adaptive)

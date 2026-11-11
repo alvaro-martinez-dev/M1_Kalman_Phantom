@@ -2,6 +2,7 @@
 #
 # Saves and loads the generated MC datasets of data/. Each dataset is a folder with:
 #   tracks.parquet: the track DataFrame (see src/montecarlo/tracks.py)
+#   <name>.parquet: optional extra tables (e.g. states.parquet of the propagation, load_table)
 #   metadata.yml:   date, git commit and the parameters actually used to generate it
 
 import shutil
@@ -35,18 +36,30 @@ def git_state():
 # params: dict of the parameters actually used (run settings, beam block...),
 #         written to metadata.yml after the date and git info
 # overwrite: if False, raises an error if out_dir already exists
+# tables: optional {name: DataFrame} of extra tables, saved as <name>.parquet
 # Returns: out_dir as a Path
-def save_dataset(df, out_dir, params, overwrite=False):
+def save_dataset(df, out_dir, params, overwrite=False, tables=None):
+
+    tables = tables or {}
+    if "tracks" in tables:
+        raise ValueError("'tracks' is the main table (df): use another name for the extra tables")
 
     out_dir = Path(out_dir)
-    if out_dir.exists():
+    if out_dir.exists() and any(out_dir.iterdir()):
         if not overwrite:
             raise FileExistsError(f"{out_dir} already exists (use --overwrite to replace it)")
-        shutil.rmtree(out_dir)
-    out_dir.mkdir(parents=True)
+        # the folder itself is not removed (OneDrive may lock it), only its contents
+        for item in out_dir.iterdir():
+            if item.is_dir():
+                shutil.rmtree(item)
+            else:
+                item.unlink()
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     # 1. Data
     df.to_parquet(out_dir / "tracks.parquet", index=False)
+    for name, table in tables.items():
+        table.to_parquet(out_dir / f"{name}.parquet", index=False)
 
     # 2. Metadata
     commit, dirty = git_state()
@@ -63,16 +76,28 @@ def save_dataset(df, out_dir, params, overwrite=False):
     return out_dir
 
 
+def _dataset_path(path):
+    path = Path(path)
+    if not path.is_absolute() and not path.exists():
+        path = DATA_DIR / path
+    return path
+
+
 # path: folder of a dataset (absolute, or relative to data/, e.g. "init_beam/proton_n100000_seed42")
 # Returns: (track DataFrame, metadata dict)
 def load_dataset(path):
 
-    path = Path(path)
-    if not path.is_absolute() and not path.exists():
-        path = DATA_DIR / path
-
+    path = _dataset_path(path)
     df = pd.read_parquet(path / "tracks.parquet")
     with open(path / "metadata.yml") as f:
         metadata = yaml.safe_load(f)
 
     return df, metadata
+
+
+# path: folder of a dataset (as in load_dataset)
+# name: name of an extra table (e.g. "states")
+# Returns: DataFrame of <name>.parquet
+def load_table(path, name):
+
+    return pd.read_parquet(_dataset_path(path) / f"{name}.parquet")
