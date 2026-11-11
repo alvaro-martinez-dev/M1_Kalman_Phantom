@@ -66,7 +66,7 @@ ax2.set_title("By lungo x a z = 550 mm")
 ax2.legend()
 
 fig.tight_layout()
-fig.savefig("biot_savart_check_v2.png", dpi=120)
+fig.savefig("biot_savart_check.png", dpi=120)
 
 print("By(0, 550)           =", by_centre)
 print("max |By - centre|    =", max_dev, "(|z - 550| < 100 mm, x = 0)")
