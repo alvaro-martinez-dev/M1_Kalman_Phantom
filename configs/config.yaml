@@ -72,16 +72,20 @@ decays:
 # ----------------------------------------------
 
 geometry:
-  spacing_after_magnet: 200 # [mm] distance between end magnet and end of the system
+  spacing_after_last: 200     # [mm] distance between the end of the last element present
+                              # (magnet, else phantom) and the end of the system
 
+  # enabled: false removes the element; its other keys are kept but not read
   phantom:
-    z_start: 50.0             # [mm] entrance of the first layer
+    enabled: true
+    z_start: 50.0            # [mm] entrance of the first layer
     layers:                   # in beam order; material = Material in src/constants.py
       - {material: WATER, thickness: 200.0}
       - {material: BONE, thickness: 100.0}
 
   magnet:
-    z_start: 400.0            # [mm] start of the magnet
+    enabled: true             # false: no magnet and no field (straight lines in vacuum)
+    z_start: 400.0           # [mm] start of the magnet
     z_length: 300.0             # [mm]
     x_half_gap: 50.0            # [mm] plates at x = +-half_gap
     y_height: 100               # [mm] thickness of the magnet plates in the y axis
@@ -96,11 +100,14 @@ geometry:
       margin: 100.0           # [mm]
 
   detector_planes: # we always generate detectors on the borders of the phantom and magnet!
-    sigma_x: 0.1              # [mm] resolution of every plane
+    enabled: true             # false: no detector planes
+    sigma_x: 0.1             # [mm] resolution of every plane
     placement: 
               # n_planes will be simetrically placed in the different regions for simplicity
               # immediately before and after the phantom/magnet there are detector planes.
               # this numbers don't account for these already established detector planes.
+              # If the phantom or the magnet is disabled, the two regions around it merge and get
+              # the planes of both (see src/geometry/detectors.py); its own keys are ignored.
       n_before_phantom: 1 # number of detector planes before phantom
       n_after_phantom_before_magnet: 2 # number o detector planes after phantom and before magnet
       n_after_magnet: 1 # number of detector planes after magnet

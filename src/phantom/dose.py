@@ -70,6 +70,9 @@ def dose_profile(geometry, T0_MeV, n_steps=200, particle=None):
     import numpy as np
     from src.phantom.materials import E_MIN_MEV, material_object
 
+    if not geometry.has_phantom:
+        raise ValueError("dose_profile needs a phantom: the geometry has none (phantom disabled)")
+
     z_arr = np.linspace(geometry.z_start_phantom,
                         geometry.z_end_phantom, n_steps + 1)
     dz = z_arr[1] - z_arr[0]

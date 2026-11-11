@@ -15,9 +15,10 @@ def propagate_free_space(x0, tx, z0, z1):
 
 
 def eom_magnet(field, q_p, particle: Particle = PROTON, kappa=KAPPA, x_half_gap=np.inf):
-    """x'' = f(z, x, x'); |p| is constant inside the field.
+    """x'' = f(z, x, x'); |p| is constant (no material).
 
-    For |x| > x_half_gap (outside the gap between the plates) the field is taken as zero,
+    Used in every vacuum segment where the field may be non-zero: inside the magnet, but also
+    the fringe field before/after the phantom and after the magnet. For |x| > x_half_gap (outside the gap between the plates) the field is taken as zero,
     so the track there is a straight line.
     """
     def fun_magnet(z, x, xprime):

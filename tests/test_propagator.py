@@ -5,7 +5,7 @@ import pytest
 from scipy.optimize import brentq
 
 from src.constants import KAPPA, PROTON, WATER
-from src.field import HardEdgeField, InterpolatedField, MagneticField
+from src.field import HardEdgeField, InterpolatedField, MagneticField, NoField
 from src.geometry.geometry import Geometry
 from src.phantom.materials import range_csda
 from src.propagator.propagator import Propagator, State, kinetic_energy, momentum
@@ -17,7 +17,7 @@ HALF_GAP = 50.0
 
 def geometry(thickness=L_WATER):
     return Geometry(z_start_phantom=Z_PH, phantom_layers=[{"material": "WATER", "thickness": thickness}],
-                    z_start_magnet=Z_MAG, z_length_magnet=L_MAG, spacing_after_magnet=100.0)
+                    z_start_magnet=Z_MAG, z_length_magnet=L_MAG, spacing_after_last=100.0)
 
 
 class UniformField(MagneticField):
@@ -110,6 +110,32 @@ def test_field_is_used_between_phantom_and_magnet():
     assert s.tx < 0.0
 
 
+def test_field_is_used_before_the_phantom():
+    """The vacuum before the phantom is not assumed field-free: a field reaching it bends the track."""
+    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP)
+    s = prop.propagate(proton_state(0.0, 500.0), Z_PH).final
+    tx_expected = -KAPPA * 1.0 * proton_state(0.0, 500.0).q_p * Z_PH     # small angle
+    assert s.tx == pytest.approx(tx_expected, rel=1e-3)
+
+
+def test_straight_line_outside_the_field_support():
+    field = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
+    prop = Propagator(geometry(), field, HALF_GAP)
+    assert prop.field_is_zero(Z_PH + L_WATER, Z_MAG)
+    assert prop.field_is_zero(Z_MAG + L_MAG, 800.0)
+    assert not prop.field_is_zero(Z_MAG, Z_MAG + L_MAG)
+    s = prop.propagate(proton_state(Z_PH + L_WATER, 500.0, x=1.0, tx=0.01), Z_MAG).final
+    assert s.tx == 0.01 and s.x == pytest.approx(1.0 + 0.01 * (Z_MAG - Z_PH - L_WATER))
+
+
+def test_field_support():
+    hard = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
+    assert hard.z_support() == (Z_MAG, Z_MAG + L_MAG)
+    interp = InterpolatedField.from_field(hard, Z_MAG, L_MAG, HALF_GAP, 50.0, 1.0, 2.0)
+    assert interp.z_support() == pytest.approx((Z_MAG - 50.0, Z_MAG + L_MAG + 50.0))
+    assert UniformField(1.0).z_support() == (-np.inf, np.inf)
+
+
 # ----- phantom + field (coupled) ---------------------------------------------------------------
 
 @pytest.mark.parametrize("adaptive", [False, True])
@@ -167,6 +193,23 @@ def test_states_at_z_out():
     res = prop.propagate(proton_state(0.0, 200.0, tx=0.01), 800.0, z_out=z_out)
     assert [s.z for s in res.at_z_out] == pytest.approx(z_out)
     assert res.final == res.at_z_out[-1]
+
+
+def test_no_phantom_no_energy_loss_and_field_before_the_magnet():
+    """Without phantom the whole vacuum before the magnet is integrated with the field."""
+    g = Geometry(z_start_magnet=Z_MAG, z_length_magnet=L_MAG, spacing_after_last=100.0)
+    res = Propagator(g, UniformField(1.0), HALF_GAP).propagate(proton_state(0.0, 200.0), Z_MAG)
+    assert res.final.q_p == proton_state(0.0, 200.0).q_p
+    assert res.final.tx < 0.0
+
+
+def test_no_magnet_with_no_field_is_a_straight_line_after_the_phantom():
+    g = Geometry(z_start_phantom=Z_PH, phantom_layers=[{"material": "WATER", "thickness": L_WATER}],
+                 spacing_after_last=100.0)
+    prop = Propagator(g, NoField(), HALF_GAP)
+    assert prop.field_is_zero(0.0, 1e9)
+    s = prop.propagate(proton_state(0.0, 200.0, x=1.0, tx=0.01), g.z_end_system).final
+    assert s.tx == 0.01 and s.x == pytest.approx(1.0 + 0.01 * g.z_end_system)
 
 
 def test_backward_not_implemented():

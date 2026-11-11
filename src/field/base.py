@@ -28,6 +28,16 @@ class MagneticField(ABC):
         """
         return ()
 
+    def z_support(self):
+        """(z_min, z_max) [mm] outside which the field is identically zero.
+
+        The propagator uses the exact straight line in vacuum segments outside this interval
+        and RKN inside it. Default: (-inf, inf), i.e. the field may be non-zero anywhere
+        (e.g. Biot-Savart, which decays but never vanishes). The ends of a finite support are
+        jumps of the field, so they must also be in z_discontinuities().
+        """
+        return (-np.inf, np.inf)
+
     def By(self, x, z):
         """Return the By component at y = 0.
 

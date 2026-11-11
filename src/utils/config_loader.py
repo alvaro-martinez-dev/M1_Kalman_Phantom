@@ -71,26 +71,46 @@ def get_key(cfg, path, block):
     return value
 
 
+# cfg: a block of the yaml with an "enabled" key
+# path: name of the block, for the error message (e.g. "geometry.phantom")
+# Returns: the value of enabled, which must be true or false (a typo must not disable an element)
+def is_enabled(cfg, path):
+
+    if not isinstance(cfg, dict) or "enabled" not in cfg:
+        raise KeyError(f"missing key '{path}.enabled' in the yaml")
+    enabled = cfg["enabled"]
+    if not isinstance(enabled, bool):
+        raise ValueError(f"'{path}.enabled' must be true or false, got {enabled!r}")
+
+    return enabled
+
+
 # geometry_cfg: the geometry block of the yaml
-# Returns: Geometry built from it (phantom, interfaces, magnet; no detectors)
+# Returns: Geometry built from it (phantom, interfaces, magnet; no detectors).
+#          A disabled phantom/magnet is absent: its other keys are not read
 def make_geometry(geometry_cfg):
 
     def get(path):
         return get_key(geometry_cfg, path, "geometry")
 
-    return Geometry(
-        z_start_phantom=get("phantom.z_start"),
-        phantom_layers=get("phantom.layers"),
-        z_start_magnet=get("magnet.z_start"),
-        z_length_magnet=get("magnet.z_length"),
-        spacing_after_magnet=get("spacing_after_magnet"),
-    )
+    phantom = {}
+    if is_enabled(get("phantom"), "geometry.phantom"):
+        phantom = dict(z_start_phantom=get("phantom.z_start"), phantom_layers=get("phantom.layers"))
+
+    magnet = {}
+    if is_enabled(get("magnet"), "geometry.magnet"):
+        magnet = dict(z_start_magnet=get("magnet.z_start"), z_length_magnet=get("magnet.z_length"))
+
+    return Geometry(**phantom, **magnet, spacing_after_last=get("spacing_after_last"))
 
 
 # geometry: Geometry the planes are placed on
 # detectors_cfg: the geometry.detector_planes block of the yaml
-# Returns: DetectorPlanes built from it
+# Returns: DetectorPlanes built from it, or None if the detector planes are disabled
 def make_detector_planes(geometry, detectors_cfg):
+
+    if not is_enabled(detectors_cfg, "geometry.detector_planes"):
+        return None
 
     def get(key):
         return get_key(detectors_cfg, f"placement.{key}", "geometry.detector_planes")

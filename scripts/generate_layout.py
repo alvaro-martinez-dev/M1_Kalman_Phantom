@@ -13,7 +13,8 @@
 #
 # Usage (from the repo root):
 #   python -m scripts.generate_layout                         # uses configs/config.yaml
-#   python -m scripts.generate_layout --no-detectors          # only the physical boundaries (0Det)
+#   python -m scripts.generate_layout --no-detectors          # only the physical boundaries (0Det),
+#                                                             # whatever detector_planes.enabled says
 #   python -m scripts.generate_layout --overwrite             # replace an existing layout folder
 #   python -m scripts.generate_layout --no-plot               # skips the report of run.plot
 #   python -m scripts.generate_layout --config my_config --overwrite
@@ -39,7 +40,8 @@ HASH_LENGTH = 6   # hex characters of the layout hash in the folder name
 # Parameters that define the layout, already validated and normalised by Geometry and
 # DetectorPlanes (eg 100 and 100.0 give the same value). Field parameters (B0, model...)
 # and sigma_x are left out: they do not change the layout.
-# x_half_gap: transverse size of the magnet, drawn in the report
+# A disabled phantom/magnet has its parameters at None.
+# x_half_gap: transverse size of the magnet, drawn in the report (None without magnet)
 # Returns: dict
 def layout_parameters(geometry, detectors, x_half_gap):
 
@@ -48,8 +50,8 @@ def layout_parameters(geometry, detectors, x_half_gap):
         "phantom_layers": geometry.phantom_layers,
         "z_start_magnet": geometry.z_start_magnet,
         "z_length_magnet": geometry.z_length_magnet,
-        "x_half_gap": x_half_gap,
-        "spacing_after_magnet": geometry.spacing_after_magnet,
+        "x_half_gap": x_half_gap if geometry.has_magnet else None,
+        "spacing_after_last": geometry.spacing_after_last,
         "placement": None if detectors is None else {
             "n_before_phantom": detectors.n_before_phantom,
             "n_after_phantom_before_magnet": detectors.n_after_phantom_before_magnet,
@@ -73,8 +75,8 @@ def main():
     parser = argparse.ArgumentParser(description="Save the z layout of the geometry and detector planes.")
     parser.add_argument("--config", default="config",
                         help="name of a yaml in configs/ (without extension) or path to a yaml")
-    parser.add_argument("--detectors", action=argparse.BooleanOptionalAction, default=True,
-                        help="include the detector planes (default: yes)")
+    parser.add_argument("--detectors", action=argparse.BooleanOptionalAction, default=None,
+                        help="include the detector planes (default: detector_planes.enabled of the yaml)")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace the layout folder if it already exists")
     parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
@@ -90,14 +92,17 @@ def main():
 
     # 2. Geometry, detectors and table
     geometry = make_geometry(geometry_cfg)
-    detectors = make_detector_planes(geometry, geometry_cfg["detector_planes"]) if args.detectors else None
+    detectors_cfg = geometry_cfg["detector_planes"]
+    if args.detectors is not None:      # the command line overrides the yaml
+        detectors_cfg = {**detectors_cfg, "enabled": args.detectors}
+    detectors = make_detector_planes(geometry, detectors_cfg)
     table = layout_table(geometry, detectors)
 
     # 3. Save
     n_detectors = int(table["is_detector"].sum())
     n_layers = len(geometry.phantom_layers)
     n_phantom_detectors = len(detectors.z_phantom_layers) if detectors else 0
-    n_magnet_detectors = detectors.n_inside_magnet if detectors else 0
+    n_magnet_detectors = detectors.n_inside_magnet if detectors and geometry.has_magnet else 0
     x_half_gap = check_real("x_half_gap", get_key(geometry_cfg, "magnet.x_half_gap", "geometry"),
                             minimum=0.0, strict=True)
     parameters = layout_parameters(geometry, detectors, x_half_gap)
@@ -126,7 +131,7 @@ def main():
         "git_commit": commit,
         "git_uncommitted_changes": dirty,
         "config_source": str(config_path),
-        "with_detectors": args.detectors,
+        "with_detectors": detectors is not None,
         "n_detector_planes": n_detectors,
         "n_phantom_layers": n_layers,
         "n_phantom_detector_planes": n_phantom_detectors,

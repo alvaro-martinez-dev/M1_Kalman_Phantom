@@ -51,7 +51,7 @@ def layered_phantom():
         ],
         z_start_magnet=500.0,
         z_length_magnet=300.0,
-        spacing_after_magnet=200.0,
+        spacing_after_last=200.0,
     )
 
 

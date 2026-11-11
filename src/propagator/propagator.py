@@ -5,14 +5,17 @@
 #
 # The z axis is cut at every physical boundary (Geometry.boundaries()), at every jump of the field
 # (field.z_discontinuities(), e.g. the ends of an interpolated map) and at every z where the state
-# is requested (e.g. detector planes). Each piece is propagated with the method of its region:
+# is requested (e.g. detector planes). Each piece is propagated according to what there is in it
+# (material and field), not according to where it is with respect to the phantom or the magnet:
 #
-#   z < z_start_phantom   free space: exact straight line (propagate_free_space)
-#   phantom layer         energy loss + field, coupled: rk4 on y = (x, tx, q/p) with
-#                         eom_phantom_field. The fringe field can reach the phantom
-#   z >= z_end_phantom    magnetic field: rkn4 on x with eom_magnet, |p| constant. The field is NOT
-#                         cut at the magnet box: the fringe field between phantom and magnet (and after
-#                         the magnet) is not negligible
+#   material                      energy loss + field, coupled: rk4 on y = (x, tx, q/p) with
+#                                 eom_phantom_field. The fringe field can reach the phantom
+#   vacuum, field may be != 0     rkn4 on x with eom_magnet, |p| constant. The field is NOT cut at
+#                                 the magnet box: the fringe field before the phantom, between
+#                                 phantom and magnet and after the magnet is not negligible
+#   vacuum, field = 0             exact straight line (propagate_free_space). Only a shortcut: RKN
+#                                 with zero field gives the same line. "Field = 0" means outside
+#                                 field.z_support() (whose ends are cuts, as jumps of the field)
 #
 # In the field, for |x| > x_half_gap (outside the plates) the field is taken as zero.
 #
@@ -105,7 +108,8 @@ class Propagator:
         # A jump of the field inside the phantom (e.g. the field map starts there) means that a
         # non-zero field is being truncated: the propagation is still cut there, but warn
         g = geometry
-        jumps = [z for z in field.z_discontinuities() if g.z_start_phantom < z < g.z_end_phantom]
+        jumps = [z for z in field.z_discontinuities()
+                 if g.has_phantom and g.z_start_phantom < z < g.z_end_phantom]
         if jumps:
             warnings.warn(f"The field jumps inside the phantom at z = {jumps} mm (e.g. the field map "
                           "starts there): the field is truncated. Increase the map margin or move "
@@ -168,9 +172,16 @@ class Propagator:
             return self.free(state, z_b), False
         if material_name is not None:
             return self.phantom(state, z_b, material_object(material_name))
-        if z_mid >= self.geometry.z_end_phantom:
-            return self.magnetic(state, z_b), False
-        return self.free(state, z_b), False
+        if self.field_is_zero(z_a, z_b):
+            return self.free(state, z_b), False
+        return self.magnetic(state, z_b), False
+
+
+    def field_is_zero(self, z_a, z_b):
+        # True if [z_a, z_b] is outside the support of the field. The ends of the support are cuts,
+        # so a segment is either fully inside or fully outside it
+        z_lo, z_hi = self.field.z_support()
+        return max(z_a, z_b) <= z_lo + TOL or min(z_a, z_b) >= z_hi - TOL
 
 
     def free(self, state, z_b):
