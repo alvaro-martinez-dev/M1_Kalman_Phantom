@@ -12,7 +12,7 @@ class HardEdgeField(MagneticField):
     No y dependence (infinite height in y).
 
     Args:
-        B0_nat: field magnitude in GeV^2.
+        B0_nat: field magnitude in natural units, MeV^2 (B0[T] * constants.tesla).
         z_start: entrance plane of the magnet [mm].
         length: magnet length along z [mm].
         half_gap: half-width of the gap in x [mm].
@@ -25,7 +25,7 @@ class HardEdgeField(MagneticField):
         self.half_gap = half_gap
 
     def B(self, x, y, z):
-        """Return the field vector in GeV^2, shape (..., 3)."""
+        """Return the field vector in MeV^2, shape (..., 3)."""
         x, y, z = np.broadcast_arrays(*map(np.asarray, (x, y, z)))
         inside = (z >= self.z_start) & (z <= self.z_end) & (np.abs(x) <= self.half_gap)
         out = np.zeros(x.shape + (3,))

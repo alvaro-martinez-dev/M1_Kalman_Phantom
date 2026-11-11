@@ -18,7 +18,7 @@ class InterpolatedField(MagneticField):
     Args:
         xs: 1D array of x nodes [mm], strictly increasing.
         zs: 1D array of z nodes [mm], strictly increasing.
-        By_grid: array of shape (len(xs), len(zs)) with By in GeV^2.
+        By_grid: array of shape (len(xs), len(zs)) with By in MeV^2.
     """
 
     def __init__(self, xs, zs, By_grid):
@@ -47,7 +47,7 @@ class InterpolatedField(MagneticField):
         return cls(xs, zs, grid)
 
     def B(self, x, y, z):
-        """Return the field vector in GeV^2, shape (..., 3).
+        """Return the field vector in MeV^2, shape (..., 3).
 
         Only By is non-zero. Points outside the grid return zero.
         The y argument is ignored (the field is evaluated at y = 0).
