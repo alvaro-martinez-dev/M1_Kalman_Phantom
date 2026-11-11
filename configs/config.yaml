@@ -1,7 +1,7 @@
 # parameter config yaml
 # With this yaml file we avoid hardcoding the model's parameters
 
-# Units: MeV, mm, rad
+# Units: MeV, mm, rad, T
 
 # ----------------------------------
 # CHECK THE FILE src/constants.py FOR VARIABLE DEFINITION !!!!!!!!!!!!!
@@ -85,7 +85,7 @@ geometry:
     z_length: 300.0             # [mm]
     x_half_gap: 50.0            # [mm] plates at x = +-half_gap
     y_height: 100               # [mm] thickness of the magnet plates in the y axis
-    B0: 1.0                   # [T] converted to natural units when loaded
+    B0: 1.0                   # [T] teslas
     model: biot_savart        # biot_savart / hard_edge
     biot_savart:
       n_filaments: 20
