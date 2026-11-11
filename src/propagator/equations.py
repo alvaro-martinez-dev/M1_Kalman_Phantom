@@ -1,6 +1,6 @@
 # Equations of motion for different regions to propagate the particle
 
-from src.constants import kappa as KAPPA   # [MeV/(T·mm)], field.By in T, p in MeV
+from src.constants import KAPPA   # [MeV/(T·mm)], field.By in T, p in MeV
 
 def eom():
     def eom_free_space(tx):

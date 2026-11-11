@@ -14,6 +14,18 @@ HIGHLAND_CONST = 13.6       # MeV, multiple scattering
 K_BETHE = 0.307075          # MeV cm^2 / mol (Bethe-Bloch)
 M_ELECTRON = 0.51099895     # MeV
 
+ALPHA_EM = 1.0 / 137.035999084
+E_CHARGE = np.sqrt(4 * np.pi * ALPHA_EM)
+
+HBARC = 1.97326980e-10      # ħc [MeV·mm]
+TESLA_NAT = 1.95353e-10        # 1 T = 195.35 eV² [MeV²]
+E_OVER_HBARC = E_CHARGE / HBARC          # e/ħc [MeV⁻¹·mm⁻¹]
+
+# Magnetic fields are given in tesla throughout the code. The equation of motion
+# uses KAPPA = e*c in practical units: p[MeV] = KAPPA * q[e] * B[T] * r[mm].
+# It is the same number as E_OVER_HBARC * TESLA_NAT (checked in tests/test_constants.py).
+KAPPA = 0.299792458         # [MeV/(T·mm)]
+
 # ----------------------------------------------
 # ---------------- Particles -------------------
 # ----------------------------------------------
@@ -103,20 +115,3 @@ WATER = Material(
     "water", 1.0, 0.55509, 75e-6, 360.8,
     x0=0.2400, x1=2.800, Cbar=3.477, a=0.09116, k=3.477)
 BONE = Material("bone", 1.85, 0.514, 91.9e-6, 106.0)
-
-#---------------------------------------------------------------------------------------------
-#------------------- conversion and constants ------------------------------------------------
-#---------------------------------------------------------------------------------------------
-
-alpha = 1.0 / 137.035999084
-e_charge = np.sqrt(4 * np.pi * alpha)
-
-
-hbarc = 1.97326980e-10      # ħc [MeV·mm]
-tesla = 1.95353e-10        # 1 T = 195.35 eV² [MeV²]
-k = e_charge / hbarc          # e/ħc [MeV⁻¹·mm⁻¹]
-
-# Magnetic fields are given in tesla throughout the code. The equation of motion
-# uses kappa = e*c in practical units: p[MeV] = kappa * q[e] * B[T] * r[mm].
-# It is the same number as k * tesla (checked in tests/test_constants.py).
-kappa = 0.299792458         # [MeV/(T·mm)]
