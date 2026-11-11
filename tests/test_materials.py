@@ -9,8 +9,19 @@ from src.constants import (
     WATER, BONE, PROTON, MU_MINUS, ELECTRON, ALPHA,
 )
 from src.phantom.materials import (
-    bethe_bloch, range_csda, highland_width, E_MIN_MEV,
+    bethe_bloch, range_csda, range_csda_fast, highland_width, E_MIN_MEV,
 )
+
+
+@pytest.mark.parametrize("material, particle", [(WATER, PROTON), (BONE, PROTON), (WATER, MU_MINUS)])
+@pytest.mark.parametrize("T", [0.5, 3.0, 50.0, 200.0, 1234.5, 5.0e4])
+def test_range_table_matches_the_integral(material, particle, T):
+    assert range_csda_fast(T, material, particle) == pytest.approx(range_csda(T, material, particle), rel=2e-6)
+
+
+def test_range_table_outside_its_limits():
+    assert range_csda_fast(0.05, WATER) == 0.0
+    assert range_csda_fast(2.0e5, WATER) == range_csda(2.0e5, WATER)     # falls back to the integral
 
 
 # ---------------------------------------------------------------

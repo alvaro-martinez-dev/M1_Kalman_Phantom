@@ -12,6 +12,7 @@ import src.constants as constants
 from src.geometry.detectors import DetectorPlanes
 from src.geometry.geometry import Geometry
 from src.montecarlo.init_beam import Initial_Beam
+from src.utils.validation import check_bool, check_real
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -102,6 +103,33 @@ def make_geometry(geometry_cfg):
         magnet = dict(z_start_magnet=get("magnet.z_start"), z_length_magnet=get("magnet.z_length"))
 
     return Geometry(**phantom, **magnet, spacing_after_last=get("spacing_after_last"))
+
+
+# cfg: full config dict (load_config)
+# geometry: Geometry built from cfg (make_geometry)
+# field: MagneticField built from cfg (src.field.build_field)
+# particle: Particle that is propagated (e.g. the one of the beam, or a decay product)
+# Returns: Propagator built from the propagator block of the yaml. Without magnet x_half_gap is
+#          not read (there is no field: NoField). The scattering kicks also need an rng in propagate
+def make_propagator(cfg, geometry, field, particle):
+
+    from src.propagator.propagator import Propagator   # local: the propagator imports src.field
+
+    def get(path):
+        return get_key(cfg["propagator"], path, "propagator")
+
+    x_half_gap = get_key(cfg["geometry"], "magnet.x_half_gap", "geometry") if geometry.has_magnet else float("inf")
+    max_slice = get("scattering.max_slice") if is_enabled(get("scattering"), "propagator.scattering") else None
+
+    return Propagator(
+        geometry, field, x_half_gap, particle=particle,
+        step=check_real("propagator.step", get("step"), minimum=0.0, strict=True),
+        adaptive=check_bool("propagator.adaptive", get("adaptive")),
+        tol_x=check_real("propagator.tolerances.x", get("tolerances.x"), minimum=0.0, strict=True),
+        tol_tx=check_real("propagator.tolerances.tx", get("tolerances.tx"), minimum=0.0, strict=True),
+        tol_qp_rel=check_real("propagator.tolerances.qp_rel", get("tolerances.qp_rel"), minimum=0.0, strict=True),
+        max_slice=max_slice,
+    )
 
 
 # geometry: Geometry the planes are placed on

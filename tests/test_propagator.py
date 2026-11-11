@@ -9,6 +9,7 @@ from src.field import HardEdgeField, InterpolatedField, MagneticField, NoField
 from src.geometry.geometry import Geometry
 from src.phantom.materials import range_csda
 from src.propagator.propagator import Propagator, State, kinetic_energy, momentum
+from src.propagator.scattering import slice_covariance, theta0_slice
 
 Z_PH, L_WATER = 50.0, 200.0                 # water phantom from 50 to 250 mm
 Z_MAG, L_MAG = 400.0, 300.0                 # magnet from 400 to 700 mm
@@ -131,7 +132,8 @@ def test_straight_line_outside_the_field_support():
 def test_field_support():
     hard = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
     assert hard.z_support() == (Z_MAG, Z_MAG + L_MAG)
-    interp = InterpolatedField.from_field(hard, Z_MAG, L_MAG, HALF_GAP, 50.0, 1.0, 2.0)
+    interp = InterpolatedField.from_field(hard, x_max=HALF_GAP, z_min=Z_MAG - 50.0, z_max=Z_MAG + L_MAG + 50.0,
+                                          dx=1.0, dz=2.0)
     assert interp.z_support() == pytest.approx((Z_MAG - 50.0, Z_MAG + L_MAG + 50.0))
     assert UniformField(1.0).z_support() == (-np.inf, np.inf)
 
@@ -173,8 +175,8 @@ def test_no_field_inside_phantom_beyond_the_half_gap():
 
 def test_field_map_starting_inside_phantom_warns_and_is_a_cut():
     source = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
-    margin = Z_MAG - (Z_PH + 100.0)                # map starts at z = 150, inside the water
-    field = InterpolatedField.from_field(source, Z_MAG, L_MAG, HALF_GAP, margin, 1.0, 2.0)
+    field = InterpolatedField.from_field(source, x_max=HALF_GAP, z_min=Z_PH + 100.0,   # inside the water
+                                         z_max=Z_MAG + L_MAG, dx=1.0, dz=2.0)
     with pytest.warns(UserWarning, match="inside the phantom"):
         prop = Propagator(geometry(), field, HALF_GAP)
     assert np.any(np.abs(prop.cuts(0.0, 900.0) - (Z_PH + 100.0)) < 1e-9)
@@ -210,6 +212,118 @@ def test_no_magnet_with_no_field_is_a_straight_line_after_the_phantom():
     assert prop.field_is_zero(0.0, 1e9)
     s = prop.propagate(proton_state(0.0, 200.0, x=1.0, tx=0.01), g.z_end_system).final
     assert s.tx == 0.01 and s.x == pytest.approx(1.0 + 0.01 * g.z_end_system)
+
+
+# ----- multiple scattering ---------------------------------------------------------------------
+
+def test_slice_edges_are_cuts_and_do_not_change_the_mean_track():
+    with_slices = no_field_propagator(max_slice=20.0)
+    assert all(np.any(np.abs(with_slices.cuts(0.0, 900.0) - z) < 1e-9) for z in np.arange(70.0, 250.0, 20.0))
+    s0 = proton_state(0.0, 200.0, x=1.0, tx=0.02)
+    a = no_field_propagator().propagate(s0, 400.0).final
+    b = with_slices.propagate(s0, 400.0).final            # rng=None: no kicks
+    assert (b.x, b.tx, b.q_p) == pytest.approx((a.x, a.tx, a.q_p), rel=1e-9, abs=1e-12)
+
+
+def test_kicks_need_slices():
+    with pytest.raises(ValueError, match="max_slice"):
+        no_field_propagator().propagate(proton_state(0.0, 200.0), 400.0, rng=np.random.default_rng(0))
+
+
+def test_same_seed_same_track():
+    prop = no_field_propagator(max_slice=20.0)
+    run = lambda: prop.propagate(proton_state(0.0, 200.0), 400.0, rng=np.random.default_rng(7)).final
+    assert run() == run()
+    assert run().tx != 0.0
+
+
+def test_kicks_only_inside_the_phantom():
+    """Kicks are applied in the phantom only: before it, the track is untouched."""
+    prop = no_field_propagator(max_slice=20.0)
+    s = prop.propagate(proton_state(0.0, 200.0, x=1.0, tx=0.01), Z_PH, rng=np.random.default_rng(3)).final
+    assert s.x == pytest.approx(1.0 + 0.01 * Z_PH) and s.tx == 0.01
+
+
+def test_spread_at_the_phantom_exit_matches_the_slice_covariances():
+    """Var(x), Var(tx), Cov at the exit = sum of the slice covariances transported to the exit."""
+    T0, max_slice, n_tracks = 200.0, 20.0, 1500
+    z_exit = Z_PH + L_WATER
+    prop = no_field_propagator(max_slice=max_slice, step=5.0)
+    s0 = proton_state(Z_PH, T0)
+
+    # Expected: mean track -> theta0 of each slice -> covariance transported as a straight line
+    edges = [sl[0] for sl in prop.slices] + [prop.slices[-1][1]]
+    mean = prop.propagate(s0, z_exit, z_out=edges[1:-1])
+    states = [s0] + mean.at_z_out + [mean.final]
+    expected = np.zeros((2, 2))
+    for entry, exit_ in zip(states[:-1], states[1:]):
+        dz = exit_.z - entry.z
+        p_mid = 0.5 * (PROTON.charge / entry.q_p + PROTON.charge / exit_.q_p)
+        theta0 = theta0_slice(PROTON.charge / p_mid, 0.0, dz, L_WATER, WATER)
+        d = z_exit - exit_.z                                 # drift from the kick to the exit
+        F = np.array([[1.0, d], [0.0, 1.0]])
+        expected += F @ slice_covariance(theta0, 0.0, dz) @ F.T
+
+    rng = np.random.default_rng(11)
+    out = np.array([[r.x, r.tx] for r in
+                    (prop.propagate(s0, z_exit, rng=rng).final for _ in range(n_tracks))])
+    assert out.mean(axis=0) == pytest.approx([0.0, 0.0], abs=4 * np.sqrt(np.diag(expected) / n_tracks).max())
+    assert np.cov(out.T) == pytest.approx(expected, rel=0.12)
+
+
+# ----- from the yaml ---------------------------------------------------------------------------
+
+def test_make_propagator_from_the_config():
+    import copy
+    from src.field import NoField, build_field
+    from src.utils.config_loader import load_config, make_geometry, make_propagator
+
+    cfg = load_config("config")
+    cfg["geometry"]["magnet"]["model"] = "hard_edge"            # fast to build
+    geometry = make_geometry(cfg["geometry"])
+    prop = make_propagator(cfg, geometry, build_field(cfg, geometry), PROTON)
+    assert prop.max_slice == cfg["propagator"]["scattering"]["max_slice"]
+    assert prop.step == cfg["propagator"]["step"] and len(prop.slices) > 0
+
+    off = copy.deepcopy(cfg)
+    off["propagator"]["scattering"]["enabled"] = False
+    off["geometry"]["magnet"]["enabled"] = False
+    geometry_off = make_geometry(off["geometry"])
+    prop = make_propagator(off, geometry_off, build_field(off, geometry_off), PROTON)
+    assert prop.max_slice is None and prop.slices == []
+    assert isinstance(prop.field, NoField) and prop.x_half_gap == np.inf
+
+
+def test_make_propagator_rejects_a_bad_step():
+    from src.field import build_field
+    from src.utils.config_loader import load_config, make_geometry, make_propagator
+
+    cfg = load_config("config")
+    cfg["geometry"]["magnet"]["model"] = "hard_edge"
+    cfg["propagator"]["step"] = 0.0
+    geometry = make_geometry(cfg["geometry"])
+    with pytest.raises(ValueError, match="propagator.step"):
+        make_propagator(cfg, geometry, build_field(cfg, geometry), PROTON)
+
+
+def test_field_map_covers_the_whole_system():
+    """build_field: the map spans [0, z_end_system] in z and the gap in x, so it never ends inside
+    the system (no warning, no artificial cut of the fringe field), whatever the geometry."""
+    import warnings
+    from src.field import build_field
+    from src.utils.config_loader import load_config, make_geometry, make_propagator
+
+    cfg = load_config("config")
+    cfg["geometry"]["magnet"]["model"] = "hard_edge"
+    geometry = make_geometry(cfg["geometry"])
+    field = build_field(cfg, geometry)
+    z_lo, z_hi = field.z_support()
+    assert z_lo <= 0.0 and z_hi >= geometry.z_end_system
+    x_nodes = field._xs
+    assert x_nodes[-1] >= cfg["geometry"]["magnet"]["x_half_gap"] and x_nodes[-1] < cfg["geometry"]["magnet"]["x_half_gap"] + 3.0
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        make_propagator(cfg, geometry, field, PROTON)
 
 
 def test_backward_not_implemented():

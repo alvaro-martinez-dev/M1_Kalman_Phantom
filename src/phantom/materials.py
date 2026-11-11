@@ -7,8 +7,11 @@ Units: energy MeV, length mm.
 Material and particle definitions come from src.constants
 (single source of truth).
 """
+from functools import lru_cache
+
 import numpy as np
 from scipy.integrate import quad
+from scipy.interpolate import CubicSpline
 import src.constants as constants
 from src.constants import (
     K_BETHE, M_ELECTRON, PROTON, HIGHLAND_CONST,
@@ -148,6 +151,39 @@ def range_csda(T_MeV, material: Material, particle: Particle = PROTON):
     rng, _ = quad(integrand, E_lo, T_MeV,
                   limit=200, epsabs=1e-10, epsrel=1e-10)
     return rng
+
+
+# Table of range_csda for range_csda_fast: nodes in log T from E_MIN to T_MAX_TABLE_MEV
+T_MAX_TABLE_MEV = 1.0e5
+NODES_PER_DECADE = 100
+
+
+@lru_cache(maxsize=None)
+def _range_table(material: Material, particle: Particle):
+    # Cubic spline of range_csda in log T. The range at each node is exact: quad between
+    # consecutive nodes, accumulated. Built once per (material, particle)
+    def integrand(T):
+        return 1.0 / bethe_bloch(T, material, particle=particle)
+
+    E_lo = E_MIN_MEV * 1.0001
+    n = int(np.ceil(np.log10(T_MAX_TABLE_MEV / E_lo) * NODES_PER_DECADE)) + 1
+    T_nodes = np.geomspace(E_lo, T_MAX_TABLE_MEV, n)
+    pieces = [quad(integrand, a, b, epsabs=1e-12, epsrel=1e-12)[0] for a, b in zip(T_nodes[:-1], T_nodes[1:])]
+    R_nodes = np.concatenate(([0.0], np.cumsum(pieces)))
+    return CubicSpline(np.log(T_nodes), R_nodes), T_nodes[0], T_nodes[-1]
+
+
+def range_csda_fast(T_MeV, material: Material, particle: Particle = PROTON):
+    """
+    range_csda [mm] from a precomputed table (relative error ~1e-8), for the propagator, which
+    needs it at every step. Outside the table (T > T_MAX_TABLE_MEV) it falls back to range_csda.
+    """
+    spline, T_lo, T_hi = _range_table(material, particle)
+    if T_MeV > T_hi:
+        return range_csda(T_MeV, material, particle)
+    if T_MeV <= T_lo:
+        return 0.0
+    return float(spline(np.log(T_MeV)))
 
 
 def highland_width(T_MeV, thickness_mm, material: Material,

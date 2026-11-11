@@ -19,9 +19,14 @@
 #
 # In the field, for |x| > x_half_gap (outside the plates) the field is taken as zero.
 #
-# Not included yet (first version):
-#   - multiple scattering (MC kicks / Kalman process noise)
+# Multiple scattering (src/propagator/scattering.py): with max_slice, each phantom layer is cut into
+# slices (phantom_slices), whose edges are also cuts. propagate(..., rng=None) is deterministic (the
+# mean track, for the Kalman filter). With an rng (Monte Carlo) a random (dx, dtx) kick is applied
+# at the end of each slice, with theta0 from the mean momentum and tx between its entrance and exit.
+#
+# Not included yet:
 #   - backward propagation (z_end < z)
+#   - energy-loss straggling (q/p is not kicked)
 
 import warnings
 from dataclasses import dataclass, replace
@@ -31,9 +36,10 @@ import numpy as np
 
 from src.constants import PROTON, Particle
 from src.geometry.geometry import Geometry, TOL
-from src.phantom.materials import E_MIN_MEV, material_object, range_csda
+from src.phantom.materials import E_MIN_MEV, material_object, range_csda, range_csda_fast
 from src.propagator.equations import eom_magnet, eom_phantom_field, propagate_free_space
 from src.propagator.rk4 import rk4, rkn4
+from src.propagator.scattering import phantom_slices, sample_kick, theta0_slice
 
 # A particle is considered stopped in a layer if its residual range after crossing it would be
 # shorter than the range at this kinetic energy (~20 um in water at 1 MeV): near the end of the
@@ -93,8 +99,10 @@ class Propagator:
     # tol_x: [mm] local error allowed in x (only if adaptive)
     # tol_tx: local error allowed in tx in the phantom (only if adaptive)
     # tol_qp_rel: relative local error allowed in q/p in the phantom (only if adaptive)
+    # max_slice: [mm] maximum slice length for multiple scattering in the phantom (see
+    #            scattering.phantom_slices), or None for no slices (no scattering possible)
     def __init__(self, geometry: Geometry, field, x_half_gap, particle: Particle = PROTON,
-                 step=1.0, adaptive=False, tol_x=1e-6, tol_tx=1e-8, tol_qp_rel=1e-8):
+                 step=1.0, adaptive=False, tol_x=1e-6, tol_tx=1e-8, tol_qp_rel=1e-8, max_slice=None):
         self.geometry = geometry
         self.field = field
         self.x_half_gap = x_half_gap
@@ -105,6 +113,12 @@ class Propagator:
         self.tol_tx = tol_tx
         self.tol_qp_rel = tol_qp_rel
 
+        # Scattering slices: (z_a, z_b, material_name, dz_layer) in beam order, and their edges
+        self.max_slice = max_slice
+        self.slices = phantom_slices(geometry, max_slice) if max_slice is not None else []
+        self._slice_starts = np.array([s[0] for s in self.slices])
+        self._slice_ends = np.array([s[1] for s in self.slices])
+
         # A jump of the field inside the phantom (e.g. the field map starts there) means that a
         # non-zero field is being truncated: the propagation is still cut there, but warn
         g = geometry
@@ -112,15 +126,16 @@ class Propagator:
                  if g.has_phantom and g.z_start_phantom < z < g.z_end_phantom]
         if jumps:
             warnings.warn(f"The field jumps inside the phantom at z = {jumps} mm (e.g. the field map "
-                          "starts there): the field is truncated. Increase the map margin or move "
-                          "the magnet away from the phantom", stacklevel=2)
+                          "starts there): the field is truncated. Make the field map cover the "
+                          "whole phantom (build_field does it)", stacklevel=2)
 
 
     def cuts(self, z0, z_end, z_out=()):
         # Sorted z values where the propagation is cut: z0, z_end, the physical boundaries,
-        # the jumps of the field and z_out
+        # the jumps of the field, the scattering slice edges and z_out
         inside = [z for z, _ in self.geometry.boundaries() if z0 < z < z_end]
         inside += [z for z in self.field.z_discontinuities() if z0 < z < z_end]
+        inside += [z for z in self._slice_ends if z0 < z < z_end]
         inside += [z for z in z_out if z0 < z < z_end]
         z_all = np.unique(np.concatenate(([z0, z_end], inside)))
         # merge cuts closer than TOL (e.g. a detector plane on a boundary)
@@ -130,25 +145,59 @@ class Propagator:
         return z_all
 
 
-    def propagate(self, state: State, z_end, z_out=()):
+    def propagate(self, state: State, z_end, z_out=(), rng=None):
         # state: State at state.z
         # z_end: [mm] final z, must be >= state.z
         # z_out: [mm] z values where the state is also returned (e.g. detector planes)
+        # rng: numpy Generator for the scattering kicks (Monte Carlo), or None for the deterministic
+        #      mean track. Needs max_slice. The state at a slice end (and at a z_out there) includes
+        #      the kick of that slice
         # Returns: PropagationResult
         if z_end < state.z:
             raise NotImplementedError("Backward propagation (z_end < state.z) is not implemented yet")
+        if rng is not None and self.max_slice is None:
+            raise ValueError("Scattering kicks (rng) need the phantom slices: build the Propagator with max_slice")
 
         z_cuts = self.cuts(state.z, z_end, z_out)
         visited = {}    # z_cut -> State
         current = state
+        slice_entry = state    # state at the entrance of the current slice (or the initial state)
 
         for z_a, z_b in zip(z_cuts[:-1].tolist(), z_cuts[1:].tolist()):
+            if self._is_edge(z_a, self._slice_starts):
+                slice_entry = current
             current, stopped = self.propagate_segment(current, z_a, z_b)
             if stopped:
                 return self.result(current, z_out, visited, stopped=True)
+            if rng is not None and self._is_edge(z_b, self._slice_ends):
+                current = self.scatter(slice_entry, current, rng)
             visited[z_b] = current
 
         return self.result(current, z_out, visited, stopped=False)
+
+
+    @staticmethod
+    def _is_edge(z, edges):
+        # True if z is one of the edges (within TOL)
+        return len(edges) > 0 and np.min(np.abs(edges - z)) <= TOL
+
+
+    def scatter(self, entry, exit, rng):
+        # Random kick at the end of a slice, from entry (State at its entrance, or where the
+        # propagation started) to exit (State at its end, before the kick). Returns the kicked State
+        _, _, material_name, dz_layer = self.slices[int(np.argmin(np.abs(self._slice_ends - exit.z)))]
+        dz = exit.z - entry.z
+        if dz <= TOL or self.particle.charge == 0:
+            return exit
+
+        # mean momentum and slope in the slice
+        p_mid = 0.5 * (abs(self.particle.charge / entry.q_p) + abs(self.particle.charge / exit.q_p))
+        q_p_mid = np.sign(exit.q_p) * abs(self.particle.charge) / p_mid
+        tx_mid = 0.5 * (entry.tx + exit.tx)
+
+        theta0 = theta0_slice(q_p_mid, tx_mid, dz, dz_layer, material_object(material_name), self.particle)
+        dx, dtx = sample_kick(theta0, tx_mid, dz, rng)
+        return replace(exit, x=exit.x + dx, tx=exit.tx + dtx)
 
 
     def result(self, final, z_out, visited, stopped):
@@ -197,7 +246,7 @@ class Propagator:
 
         # Does it stop in this layer? (CSDA range vs path length in the layer). The path is taken
         # as straight with the entrance tx: the field bends the track very little inside the phantom
-        residual = range_csda(T, material, particle) if T > E_MIN_MEV else 0.0
+        residual = range_csda_fast(T, material, particle) if T > E_MIN_MEV else 0.0
         if residual <= (z_b - state.z) * path_factor + _stop_margin(material, particle):
             return self.stopped_at(state, residual / path_factor), True
 

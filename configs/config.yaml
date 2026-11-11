@@ -93,11 +93,10 @@ geometry:
     model: biot_savart        # biot_savart / hard_edge
     biot_savart:
       n_filaments: 20
-    interpolation:
-      enabled: true
+    interpolation:            # tabulate the field once, on a grid covering the whole system in z
+      enabled: true           # and the magnet gap in x (outside the gap the field is zero)
       dx: 1.0                 # [mm]
       dz: 2.0                 # [mm]
-      margin: 100.0           # [mm]
 
   detector_planes: # we always generate detectors on the borders of the phantom and magnet!
     enabled: true             # false: no detector planes
@@ -119,7 +118,18 @@ geometry:
 # ------------ Propagator -------------------------------------------
 # -------------------------------------------------------------------
 
-propagator: {}
+propagator:
+  step: 1.0                   # [mm] RK step (fixed), or initial and maximum step (adaptive)
+  adaptive: false             # adaptive steps (error control with the tolerances) instead of fixed ones
+  tolerances:                 # local error allowed per step (only if adaptive)
+    x: 1.0e-6                 # [mm]
+    tx: 1.0e-8                # in the phantom
+    qp_rel: 1.0e-8            # relative, in q/p, in the phantom
+
+  scattering:                 # multiple Coulomb scattering in the phantom (Highland, per slice)
+    enabled: true             # false: no slices, the Monte Carlo propagates without kicks
+    max_slice: 5.0            # [mm] maximum slice length; each layer is cut into equal slices
+                              # (never across an interface), one kick at the end of each
 
 
 # ----------------------------------------------

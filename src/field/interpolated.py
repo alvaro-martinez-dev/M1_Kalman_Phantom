@@ -1,7 +1,7 @@
 """Tabulated By(x, z) at y = 0, interpolated with a cubic spline.
 
-The source field is evaluated once on a regular (x, z) grid that extends
-beyond the magnet by a margin. During tracking, By is read by interpolation,
+The source field is evaluated once on a regular (x, z) grid (build_field: the
+whole system in z, the magnet gap in x). During tracking, By is read by interpolation,
 which is much faster than re-evaluating the source (e.g. Biot-Savart) at
 every RK4 substep.
 
@@ -26,23 +26,22 @@ class InterpolatedField(MagneticField):
         self._spline = RectBivariateSpline(xs, zs, By_grid, kx=3, ky=3)
 
     @classmethod
-    def from_field(cls, source, z_start, length, half_gap, margin, dx, dz):
-        """Tabulate a source field on a grid covering the magnet plus margin.
+    def from_field(cls, source, x_max, z_min, z_max, dx, dz):
+        """Tabulate a source field on the grid x in [-x_max, x_max], z in [z_min, z_max].
 
-        Grid extent:
-            x in [-(half_gap + margin), +(half_gap + margin)]
-            z in [z_start - margin, z_start + length + margin]
+        The nodes are spaced dx, dz; the last node is at or just beyond x_max / z_max,
+        so the grid always covers the requested range.
 
         Args:
             source: any MagneticField instance (hard-edge, Biot-Savart, ...).
-            z_start, length, half_gap: magnet geometry [mm].
-            margin: extra extent beyond the magnet in x and z [mm].
+            x_max: half width of the grid in x [mm].
+            z_min, z_max: extent of the grid in z [mm].
             dx, dz: grid spacing [mm].
         """
-        x_max = half_gap + margin
-        z0, z1 = z_start - margin, z_start + length + margin
-        xs = np.arange(-x_max, x_max + dx / 2, dx)
-        zs = np.arange(z0, z1 + dz / 2, dz)
+        nx = int(np.ceil(x_max / dx - 1e-9))
+        nz = int(np.ceil((z_max - z_min) / dz - 1e-9))
+        xs = dx * np.arange(-nx, nx + 1)
+        zs = z_min + dz * np.arange(nz + 1)
         grid = source.By(xs[:, None], zs[None, :])   # shape (nx, nz)
         return cls(xs, zs, grid)
 
