@@ -4,6 +4,11 @@
 # drawn on the schematic of its system, in the (z, x) plane: the full trajectory as a line and its
 # true state at each detector plane as a dot. Written by generate_propagation if run.plot is true.
 #
+# Along each track, symbols show the field it crosses, B_y(x, z) of the model (zero outside the
+# gap, as in the propagator): ⊙ for B_y > 0, out of the page (z to the right and x up give
+# z x x = +y towards the reader), ⊗ for B_y < 0, into the page, with size growing with |B_y|.
+# Points with |B_y| below FIELD_MIN_FRACTION of B0 are not marked.
+#
 # Everything is rebuilt from the metadata of the dataset (geometry, detector planes, field,
 # propagator), so the tracks are always drawn on the system they were propagated in: no layout
 # folder is needed (the layout it corresponds to is recorded in the metadata, layout_name).
@@ -24,6 +29,7 @@ import matplotlib.patheffects as path_effects
 import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
+from matplotlib.legend_handler import HandlerTuple
 from matplotlib.lines import Line2D
 
 from plotting.plot_layout import COLORS_MATERIAL, COLOR_TEXT, LEGEND_COLUMNS, MARGIN_RATIOS, PAGE_SIZE, draw_layout
@@ -46,6 +52,14 @@ LINE_WIDTH = 2.0
 HALO_WIDTH = 4.0            # surface ring around each line, separates it from the fills and other lines
 MARKER_SIZE = 5.0
 TOL_PLANES = 1e-6           # [mm] allowed difference between the redrawn track and the dataset at the planes
+
+# Field symbols along the tracks
+FIELD_DZ = 30.0             # [mm] spacing of the symbols along z
+FIELD_CLEAR_OF_PLANES = 10.0  # [mm] no symbol this close to a plane (its dot is there)
+FIELD_MIN_FRACTION = 0.05   # |B_y| / |B0| below which no symbol is drawn
+FIELD_SIZE_MIN, FIELD_SIZE_MAX = 4.0, 9.0   # marker size at FIELD_MIN_FRACTION and at |B_y| >= |B0|
+FIELD_INNER_RATIO = 0.55    # size of the inner dot / cross relative to the circle
+FIELD_EDGE_WIDTH = 0.9
 
 
 # prop_metadata: metadata.yml of the propagation dataset
@@ -73,6 +87,47 @@ def dense_track(propagator, input_track, input_row, kick_seed, plane_z, dz):
     return np.array([s.z for s in states]), np.array([s.x for s in states])
 
 
+# Draws one ⊙ (sign > 0) or ⊗ (sign < 0) of marker size `size` at (z, x)
+def draw_field_symbol(ax, z, x, sign, size, zorder=6):
+
+    ax.plot(z, x, linestyle="none", marker="o", markersize=size, markerfacecolor=COLOR_SURFACE,
+            markeredgecolor=COLOR_TEXT, markeredgewidth=FIELD_EDGE_WIDTH, zorder=zorder)
+    inner = dict(marker=".", markersize=size * FIELD_INNER_RATIO * 0.9) if sign > 0 else \
+        dict(marker="x", markersize=size * FIELD_INNER_RATIO, markeredgewidth=FIELD_EDGE_WIDTH)
+    ax.plot(z, x, linestyle="none", color=COLOR_TEXT, zorder=zorder + 0.1, **inner)
+
+
+# Field symbols along one trajectory (z, x): B_y of the model where the track is, every FIELD_DZ
+def draw_field_along(ax, propagator, z, x, plane_z, B0):
+
+    z_marks = np.arange(z[0] + FIELD_DZ / 2, z[-1], FIELD_DZ)
+    z_marks = z_marks[np.min(np.abs(z_marks[:, None] - plane_z[None, :]), axis=1) > FIELD_CLEAR_OF_PLANES]
+    for zm in z_marks:
+        xm = float(np.interp(zm, z, x))
+        By = propagator.field.By(xm, zm) if abs(xm) <= propagator.x_half_gap else 0.0
+        fraction = abs(By) / abs(B0)
+        if fraction < FIELD_MIN_FRACTION:
+            continue
+        size = FIELD_SIZE_MIN + (FIELD_SIZE_MAX - FIELD_SIZE_MIN) * min(1.0, (fraction - FIELD_MIN_FRACTION)
+                                                                        / (1.0 - FIELD_MIN_FRACTION))
+        draw_field_symbol(ax, zm, xm, np.sign(By), size)
+
+
+# Legend handles of the field symbols
+def field_legend_handles():
+
+    out = []
+    for sign, label in ((+1, "B_y > 0, out of the page"), (-1, "B_y < 0, into the page")):
+        circle = Line2D([], [], linestyle="none", marker="o", markersize=FIELD_SIZE_MAX,
+                        markerfacecolor=COLOR_SURFACE, markeredgecolor=COLOR_TEXT, markeredgewidth=FIELD_EDGE_WIDTH)
+        inner = Line2D([], [], linestyle="none", color=COLOR_TEXT,
+                       **(dict(marker=".", markersize=FIELD_SIZE_MAX * FIELD_INNER_RATIO * 0.9) if sign > 0 else
+                          dict(marker="x", markersize=FIELD_SIZE_MAX * FIELD_INNER_RATIO,
+                               markeredgewidth=FIELD_EDGE_WIDTH)))
+        out.append(((circle, inner), f"{label} (size ~ |B_y|)"))
+    return out
+
+
 # prop_path: propagation dataset folder (absolute, or relative to data/)
 # n_tracks: tracks to draw, chosen at random with seed; dz: [mm] spacing of the drawn points
 # out_path: output pdf (default: REPORT_NAME in the dataset folder)
@@ -93,6 +148,8 @@ def plot_tracks(prop_path, n_tracks=5, seed=0, dz=2.0, out_path=None):
     particle = propagator.particle
     plane_z = np.array([plane["z"] for plane in prop_metadata["planes"]])
     n_tracks = min(n_tracks, len(tracks))
+    magnet = prop_metadata["geometry"]["magnet"]
+    B0 = float(magnet["B0"]) if propagator.geometry.has_magnet and magnet["B0"] else None   # None: no symbols
 
     # 2. Schematic of the system
     fig = Figure(figsize=PAGE_SIZE, layout="constrained")
@@ -121,7 +178,9 @@ def plot_tracks(prop_path, n_tracks=5, seed=0, dz=2.0, out_path=None):
         ax.plot(z, x, color=color, linewidth=LINE_WIDTH, path_effects=halo, zorder=4)
         ax.plot(at_planes["z"], at_planes["x"], linestyle="none", marker="o", markersize=MARKER_SIZE,
                 markerfacecolor=color, markeredgecolor=COLOR_SURFACE, markeredgewidth=1.0, zorder=5)
-        T0 = kinetic_energy(input_tracks.iloc[input_row]["q_over_p0"], particle)
+        if B0:
+            draw_field_along(ax, propagator, z, x, plane_z, B0)
+        T0 =kinetic_energy(input_tracks.iloc[input_row]["q_over_p0"], particle)
         end = "stops" if track.stopped else f"{track.T_final:.0f} MeV"
         track_handles.append(Line2D([], [], color=color, linewidth=LINE_WIDTH, marker="o", markersize=MARKER_SIZE,
                                     label=f"track {input_row}: {T0:.0f} MeV -> {end}"))
@@ -131,11 +190,16 @@ def plot_tracks(prop_path, n_tracks=5, seed=0, dz=2.0, out_path=None):
     if x_extent * 1.05 > ax.get_ylim()[1]:
         ax.set_ylim(-x_extent * 1.05, x_extent * 1.05)
 
-    handles = track_handles + [Line2D([], [], linestyle="none", marker="o", markersize=MARKER_SIZE,
-                                      markerfacecolor=COLOR_TEXT, markeredgecolor=COLOR_SURFACE,
-                                      label="true state at a detector plane")] + layout_handles
-    ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.08),
-              ncol=min(len(handles), LEGEND_COLUMNS), fontsize=8, frameon=False)
+    entries = [(h, h.get_label()) for h in track_handles]
+    entries.append((Line2D([], [], linestyle="none", marker="o", markersize=MARKER_SIZE, markerfacecolor=COLOR_TEXT,
+                           markeredgecolor=COLOR_SURFACE), "true state at a detector plane"))
+    if B0:
+        entries += field_legend_handles()
+    entries += [(h, h.get_label()) for h in layout_handles]
+    ax.legend([h for h, _ in entries], [label for _, label in entries],
+              handler_map={tuple: HandlerTuple(ndivide=1)},       # ⊙ / ⊗: circle and inner mark overlaid
+              loc="upper center", bbox_to_anchor=(0.5, -0.08),
+              ncol=min(len(entries), LEGEND_COLUMNS), fontsize=8, frameon=False)
 
     out_path = Path(out_path) if out_path is not None else prop_dir / REPORT_NAME
     with PdfPages(out_path) as pdf:

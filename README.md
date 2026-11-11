@@ -176,7 +176,9 @@ The output goes to `data/propagation/<input name>_prop_seed<seed>[_n<n-max>]/`:
   z), `layout_name` / `layout_hash` (the folder of step (3) with this geometry, the one
   `generate_layout` writes for it) and the `geometry` and `propagator` blocks used
 - `tracks_on_layout.pdf`: 5 random tracks drawn on the schematic of the system, as their full
-  trajectory plus their true state at each plane, if `run.plot` is `true`
+  trajectory plus their true state at each plane, if `run.plot` is `true`. Along each track,
+  ⊙ / ⊗ mark the field it crosses: B_y > 0 (out of the page) / B_y < 0 (into the page), with
+  size growing with |B_y| (only where |B_y| > 5 % of B0)
 
 The geometry is the `geometry` block of the yaml, as in step (3). The layout folder of step (3)
 is not needed: the plot rebuilds the schematic from the metadata of the dataset, so the tracks
