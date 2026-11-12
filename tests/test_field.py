@@ -158,21 +158,21 @@ class TestInterpolatedField:
     def test_grid_covers_requested_range(self):
         src = HardEdgeField(1.0, Z_START, Z_LENGTH, X_HALF_GAP)
         f = InterpolatedField.from_field(src, x_max=52.0, z_min=0.0,
-                                         z_max=1000.0, dx=1.0, dz=2.0)
+                                         z_max=1000.0, dx=1.0, dz=0.5)
         assert f._xs[0] <= -52.0 and f._xs[-1] >= 52.0
         assert f._zs[0] == 0.0 and f._zs[-1] >= 1000.0
         assert 0.0 in f._xs                      # grid symmetric, contains x = 0
 
     def test_support_and_discontinuities_are_grid_ends(self):
         src = HardEdgeField(1.0, Z_START, Z_LENGTH, X_HALF_GAP)
-        f = InterpolatedField.from_field(src, 52.0, 0.0, 1000.0, 1.0, 2.0)
+        f = InterpolatedField.from_field(src, 52.0, 0.0, 1000.0, 1.0, 0.5)
         ends = (float(f._zs[0]), float(f._zs[-1]))
         assert tuple(f.z_support()) == ends
         assert tuple(f.z_discontinuities()) == ends
 
     def test_zero_outside_grid(self):
         src = HardEdgeField(1.0, Z_START, Z_LENGTH, X_HALF_GAP)
-        f = InterpolatedField.from_field(src, 52.0, 0.0, 1000.0, 1.0, 2.0)
+        f = InterpolatedField.from_field(src, 52.0, 0.0, 1000.0, 1.0, 0.5)
         assert f.By(0.0, -10.0) == 0.0
         assert f.By(0.0, 1500.0) == 0.0
         assert f.By(200.0, 500.0) == 0.0
@@ -181,7 +181,7 @@ class TestInterpolatedField:
         """Away from the steep fringe, the spline reproduces the source."""
         src = BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 20)
         f = InterpolatedField.from_field(src, x_max=52.0, z_min=200.0,
-                                         z_max=900.0, dx=1.0, dz=2.0)
+                                         z_max=900.0, dx=1.0, dz=0.5)
         x = np.linspace(-25.0, 25.0, 11)[:, None]
         z = np.linspace(450.0, 650.0, 21)[None, :]
         exact = src.By(x, z)
@@ -192,7 +192,7 @@ class TestInterpolatedField:
         """Not an assertion on accuracy: prints the spline error at the steep
         edge z = z_start, to decide the grid spacing (run with pytest -s)."""
         src = BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 20)
-        f = InterpolatedField.from_field(src, 52.0, 200.0, 900.0, 1.0, 2.0)
+        f = InterpolatedField.from_field(src, 52.0, 200.0, 900.0, 1.0, 0.5)
         z = np.linspace(Z_START - 10, Z_START + 10, 81)
         err = np.max(np.abs(f.By(0.0, z) - src.By(0.0, z)))
         print(f"\nmax interpolation error within 10 mm of z_start: {err:.3e} T")
@@ -204,7 +204,7 @@ class TestInterpolatedScalarPath:
     @staticmethod
     def make():
         src = BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 20)
-        return InterpolatedField.from_field(src, x_max=52.0, z_min=0.0, z_max=1000.0, dx=1.0, dz=2.0)
+        return InterpolatedField.from_field(src, x_max=52.0, z_min=0.0, z_max=1000.0, dx=1.0, dz=0.5)
 
     def test_scalar_returns_python_float(self):
         f = self.make()
@@ -238,3 +238,11 @@ class TestInterpolatedScalarPath:
         f = self.make()
         assert f.By(np.float64(10.0), np.float64(500.0)) == pytest.approx(
             f.By(np.array([10.0]), np.array([500.0]))[0], abs=1e-14)
+
+def test_edge_error_at_dz_0p5():
+    """Interpolation error near the steep edges at the chosen dz = 0.5 mm."""
+    src = BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 20)
+    f = InterpolatedField.from_field(src, x_max=52.0, z_min=0.0,
+                                     z_max=1000.0, dx=1.0, dz=0.5)
+    z = np.linspace(Z_START - 10, Z_START + 10, 801)
+    assert np.max(np.abs(f.By(0.0, z) - src.By(0.0, z))) < 2e-4

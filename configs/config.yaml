@@ -96,7 +96,7 @@ geometry:
     interpolation:            # tabulate the field once, on a grid covering the whole system in z
       enabled: true           # and the magnet gap in x (outside the gap the field is zero)
       dx: 1.0                 # [mm]
-      dz: 2.0                 # [mm]
+      dz: 0.5                 # [mm]
 
   detector_planes: # we always generate detectors on the borders of the phantom and magnet!
     enabled: true             # false: no detector planes
