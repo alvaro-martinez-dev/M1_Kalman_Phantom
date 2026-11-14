@@ -106,12 +106,32 @@ class TestBiotSavartField:
                                x_half_gap=X_HALF_GAP, y_height=y_height,
                                n_filaments=n)
 
-    def test_centre_normalisation(self):
-        assert self.make(B0=1.0).By(0.0, Z_CENTRE) == pytest.approx(1.0, abs=1e-12)
-        assert self.make(B0=0.7).By(0.0, Z_CENTRE) == pytest.approx(0.7, abs=1e-12)
+    def test_axis_integral_normalisation(self):
+        """Integral of By along the axis equals B0 * z_length (finer step than the
+        one used internally, so this is an independent check)."""
+        f = self.make(B0=1.0)
+        z = np.arange(Z_START - 2400.0, Z_END + 2400.0 + 0.1, 0.5)
+        integral = np.trapezoid(f.By(0.0, z), z)
+        assert integral == pytest.approx(1.0 * Z_LENGTH, rel=1e-4)
+
+    def test_axis_integral_independent_of_geometry(self):
+        """The bending power does not depend on y_height or n_filaments."""
+        z = np.arange(Z_START - 2400.0, Z_END + 2400.0 + 0.1, 0.5)
+        for y_height, n in [(100.0, 21), (400.0, 81)]:
+            f = self.make(B0=0.8, n=n, y_height=y_height)
+            assert np.trapezoid(f.By(0.0, z), z) == pytest.approx(0.8 * Z_LENGTH, rel=1e-4)
 
     def test_sign_follows_B0(self):
-        assert self.make(B0=-1.0).By(0.0, Z_CENTRE) == pytest.approx(-1.0, abs=1e-12)
+        z = np.arange(Z_START - 2400.0, Z_END + 2400.0 + 0.1, 1.0)
+        f = self.make(B0=-1.0)
+        assert np.trapezoid(f.By(0.0, z), z) == pytest.approx(-1.0 * Z_LENGTH, rel=1e-4)
+        assert f.By(0.0, Z_CENTRE) < 0.0
+
+    def test_invalid_range_raises(self):
+        with pytest.raises(ValueError):
+            # zero-width magnet and zero range give a null integral
+            BiotSavartField(1.0, Z_START, 0.0, X_HALF_GAP, Y_HEIGHT, 5,
+                            z_int_halfrange=0.0)
 
     def test_linear_in_B0(self):
         z = np.linspace(300, 800, 21)
