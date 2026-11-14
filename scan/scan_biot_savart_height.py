@@ -2,7 +2,7 @@
 
 The filament pitch in y is kept at about 5 mm, so n_filaments grows with y_height.
 Run from repo root:
-    .venv\\Scripts\\python.exe scripts\\scan_biot_savart_height.py
+    .venv\\Scripts\\python.exe scripts\\scan_biot_savart_height.py   that's for windows
 """
 import sys
 from pathlib import Path

@@ -1,7 +1,7 @@
 """Scan of n_filaments: uniformity, interpolation error and field integral.
 
 Run from repo root:
-    .venv\\Scripts\\python.exe scripts\\scan_filaments.py
+    .venv\\Scripts\\python.exe scripts\\scan_filaments.py   that's for windows
 """
 import sys
 from pathlib import Path

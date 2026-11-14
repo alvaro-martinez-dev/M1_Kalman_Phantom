@@ -1,6 +1,6 @@
 """Checks on the field integral: convergence in the integration range and
 in the z step, for several plate heights. Run from repo root:
-    .venv\\Scripts\\python.exe scripts\\verify_integral.py
+    .venv\\Scripts\\python.exe scripts\\verify_integral.py   that's for windows
 """
 import sys
 from pathlib import Path
