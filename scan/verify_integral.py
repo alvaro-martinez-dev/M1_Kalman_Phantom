@@ -1,16 +1,21 @@
 """Checks on the field integral: convergence in the integration range and
 in the z step, for several plate heights. Run from repo root:
-    .venv\\Scripts\\python.exe scripts\\verify_integral.py   that's for windows
+    .venv\Scripts\python.exe  scan\verify_integral.py   that's for windows
 """
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import numpy as np
-from field import BiotSavartField
+from src.utils.config_loader import load_config
+from src.field import BiotSavartField
 
-Z_START, Z_LENGTH, X_HALF_GAP = 400.0, 300.0, 50.0
+_m = load_config("config")["geometry"]["magnet"]
+Z_START = _m["z_start"]
+Z_LENGTH = _m["z_length"]
+X_HALF_GAP = _m["x_half_gap"]
 PITCH = 5.0
 
 

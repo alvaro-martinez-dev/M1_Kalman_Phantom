@@ -2,17 +2,24 @@
 
 The filament pitch in y is kept at about 5 mm, so n_filaments grows with y_height.
 Run from repo root:
-    .venv\\Scripts\\python.exe scripts\\scan_biot_savart_height.py   that's for windows
+    .venv\Scripts\python.exe  scan\scan_biot_savart_height.py   that's for windows
 """
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import numpy as np
-from field import BiotSavartField
+from src.utils.config_loader import load_config
+from src.field import BiotSavartField
 
-Z_START, Z_LENGTH, X_HALF_GAP = 400.0, 300.0, 50.0
+_m = load_config("config")["geometry"]["magnet"]
+Z_START = _m["z_start"]
+Z_LENGTH = _m["z_length"]
+X_HALF_GAP = _m["x_half_gap"]
+DX = _m["interpolation"]["dx"]
+
 Z_CENTRE = Z_START + Z_LENGTH / 2.0
 FILAMENT_PITCH = 5.0                                   # mm, spacing between filaments in y
 

@@ -1,20 +1,28 @@
 """Scan of n_filaments: uniformity, interpolation error and field integral.
 
 Run from repo root:
-    .venv\\Scripts\\python.exe scripts\\scan_filaments.py   that's for windows
+    .venv\Scripts\python.exe  scan\scan_filaments.py   that's for windows
 """
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import numpy as np
-from field import BiotSavartField, InterpolatedField
+from src.utils.config_loader import load_config
+from src.field import BiotSavartField, InterpolatedField
 
-Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT = 400.0, 300.0, 50.0, 100.0
+_m = load_config("config")["geometry"]["magnet"]
+Z_START = _m["z_start"]
+Z_LENGTH = _m["z_length"]
+X_HALF_GAP = _m["x_half_gap"]
+Y_HEIGHT = _m["y_height"]
+DX = _m["interpolation"]["dx"]
+DZ = _m["interpolation"]["dz"]
+
 Z_END = Z_START + Z_LENGTH
 Z_CENTRE = Z_START + Z_LENGTH / 2.0
-DX, DZ = 1.0, 0.1                      # interpolation grid, as in config
 
 z_win = np.linspace(Z_CENTRE - 100, Z_CENTRE + 100, 201)
 z_int = np.linspace(0.0, 1000.0, 20001)

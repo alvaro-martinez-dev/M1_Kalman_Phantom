@@ -1,0 +1,51 @@
+{
+  "script": "check_biot_savart.py",
+  "created_utc": "2026-11-15T18:38:17+00:00",
+  "git_commit": "d3d61e4",
+  "config_file": "configs/config.yaml",
+  "magnet_config": {
+    "enabled": true,
+    "z_start": 400.0,
+    "z_length": 300.0,
+    "x_half_gap": 50.0,
+    "y_height": 100,
+    "B0": 1.0,
+    "model": "biot_savart",
+    "biot_savart": {
+      "n_filaments": 20
+    },
+    "interpolation": {
+      "enabled": true,
+      "dx": 1.0,
+      "dz": 0.5
+    }
+  },
+  "field": {
+    "model": "BiotSavartField (raw source, no interpolation)",
+    "B0_used_T": 1.0,
+    "z_start_mm": 400.0,
+    "z_length_mm": 300.0,
+    "x_half_gap_mm": 50.0,
+    "y_height_mm": 100,
+    "n_filaments": 20
+  },
+  "plot_ranges": {
+    "z_mm": [
+      200.0,
+      800.0,
+      600
+    ],
+    "x_mm": [
+      -50.0,
+      50.0,
+      201
+    ],
+    "uniformity_window_mm": 100.0
+  },
+  "results": {
+    "By_centre_T": 1.0642191846777511,
+    "max_abs_deviation_T": 0.11079155687751596,
+    "relative_deviation": 0.1041059571868778
+  },
+  "note": "Deterministic script (no random numbers, no seed)."
+}

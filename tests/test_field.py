@@ -8,9 +8,9 @@ import numpy as np
 import pytest
 from scipy.integrate import quad
 
-from field import (HardEdgeField, BiotSavartField, InterpolatedField,
+from src.field import (HardEdgeField, BiotSavartField, InterpolatedField,
                    NoField, MagneticField)
-from field.biot_savart import _segment_field
+from src.field.biot_savart import _segment_field
 
 # Reference geometry
 Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT = 400.0, 300.0, 50.0, 100.0
@@ -266,3 +266,19 @@ def test_edge_error_at_dz_0p5():
                                      z_max=1000.0, dx=1.0, dz=0.5)
     z = np.linspace(Z_START - 10, Z_START + 10, 801)
     assert np.max(np.abs(f.By(0.0, z) - src.By(0.0, z))) < 2e-4
+
+class TestBuildFieldFromConfig:
+    """Integration: the field built from configs/config.yaml."""
+
+    def test_build_field(self):
+        from src.utils.config_loader import load_config, make_geometry
+        from src.field import build_field
+
+        cfg = load_config("config")
+        geometry = make_geometry(cfg["geometry"])
+        field = build_field(cfg, geometry)
+        assert isinstance(field, MagneticField)
+
+        m = cfg["geometry"]["magnet"]
+        z_centre = m["z_start"] + m["z_length"] / 2.0
+        assert np.isfinite(field.By(0.0, z_centre))
