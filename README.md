@@ -180,11 +180,11 @@ What happens to each track, from its `z0` to the end of the system:
   Each layer is cut into slices of at most `propagator.scattering.max_slice` mm, and a random
   multiple-scattering kick (dx, dtx) is applied at the end of each slice (Highland with the
   local momentum). A particle whose range ends in the phantom stops there.
+- **Magnet**: field from `geometry.magnet` (tabulated once over the whole system if
+  `interpolation.enabled`); outside the gap (|x| > `x_half_gap`) the field is zero.
 
 `propagator.seed` gives two independent random streams: one for the choice of the `n_max`
 tracks and one for the kicks. The chosen tracks keep their order and their `event_id` of the input.
-- **Magnet**: field from `geometry.magnet` (tabulated once over the whole system if
-  `interpolation.enabled`); outside the gap (|x| > `x_half_gap`) the field is zero.
 
 The output goes to `data/propagation/<input name>_prop_seed<seed>[_n<n-max>]/`:
 
@@ -207,15 +207,44 @@ is not needed: the plot rebuilds the schematic from the metadata of the dataset,
 are always drawn on the system they were propagated in.
 
 Options: `--config <name or path>`, `--input <dataset>` (default: `propagator.input`),
-`--n-max <n>` (default: `propagator.n_max`), `--name <folder>`, `--overwrite`,
-`--plot`/`--no-plot` (default: `run.plot`).
+`--n-max <n>` (default: `propagator.n_max`), `--workers <n>` (default: `propagator.n_workers`),
+`--name <folder>`, `--overwrite`, `--plot`/`--no-plot` (default: `run.plot`).
 
-Speed: about 70 ms per track that crosses the whole system with `step: 1.0` (100 000 tracks
-take about 2 hours), so start with a small `n_max`. Only charged particles of a single species, going
-forwards (`pz0 > 0`), can be propagated: a neutral beam (e.g. `jpsi`) leaves no hits.
+Speed: about 70 ms per track that crosses the whole system with `step: 1.0`, in one process
+(100 000 tracks take about 2 hours), so start with a small `n_max`. Only charged particles of a
+single species, going forwards (`pz0 > 0`), can be propagated: a neutral beam (e.g. `jpsi`)
+leaves no hits.
 
 Each track has its own random stream for the kicks (from `propagator.seed` and its row in the
 input), so any track can be propagated again on its own and it is exactly the same track.
+
+#### Multiprocessing
+
+The tracks are propagated in parallel in `propagator.n_workers` processes
+(`src/propagator/multiprocess_propagation.py`, with `concurrent.futures.ProcessPoolExecutor` of
+the standard library). The tracks are split into contiguous chunks, each process propagates its
+chunks and the results are joined back in order. Since each track has its own random stream, the
+output is **exactly the same** whatever the number of processes. A `tqdm` progress bar shows the
+tracks done.
+
+- `n_workers: 1` runs in a single process (no multiprocessing); `null` (default) uses half the
+  logical CPUs of the computer it runs on (about the physical cores), so the same yaml adapts to
+  any PC. A number larger than the logical CPUs of the computer is lowered to them, with a warning.
+- Processes, not threads: the GIL of Python lets only one thread run Python code at a time, so
+  threads would not speed up the propagation. Each process is a separate Python with its own copy
+  of the propagator (geometry and field, ~1.5 MB).
+- Each process takes a few seconds to start (it imports numpy/scipy/pandas; on Windows the
+  processes start from scratch), during which the bar stays at 0 %. With a few hundred tracks or
+  fewer, `--workers 1` is faster.
+- Do not use more processes than physical cores: with hyperthreading the two logical CPUs of a
+  core compete for it. Measured with 1000 tracks on 16 logical CPUs (8 cores):
+
+  | processes | 1 | 4 | 8 | 16 |
+  |---|---|---|---|---|
+  | time | 71 s | 30 s | 30 s | 50 s |
+
+- On Windows the processes import the main script again: any script that calls
+  `propagate_tracks_parallel` must have its code under `if __name__ == "__main__":`.
 
 The plot propagates the chosen tracks again with many points (the dataset only has the
 states at the planes) and checks that they match the dataset at the planes. To redo only the
@@ -255,7 +284,8 @@ M1_Kalman_Phantom/
 │   │   ├── propagator.py    region by region: straight line / RKN in vacuum, RK in the phantom
 │   │   ├── equations.py     equations of motion of each region
 │   │   ├── rk4.py           Runge-Kutta and Runge-Kutta-Nyström integrators
-│   │   └── scattering.py    multiple scattering per slice: theta0, (dx, dtx) covariance, kicks
+│   │   ├── scattering.py    multiple scattering per slice: theta0, (dx, dtx) covariance, kicks
+│   │   └── multiprocess_propagation.py   propagation of many tracks in parallel processes
 │   ├── montecarlo/          initial beam, two-body decays, track table, full propagation MC
 │   ├── kalman/              Kalman filter (in progress)
 │   └── utils/               yaml loading, dataset save/load, input validation

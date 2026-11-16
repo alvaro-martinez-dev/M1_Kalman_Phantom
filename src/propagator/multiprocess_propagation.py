@@ -12,6 +12,7 @@
 # be protected by  if __name__ == "__main__":  (scripts/generate_propagation.py is).
 
 import os
+import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
@@ -30,13 +31,20 @@ SERIAL_CHUNKS = 200
 
 def resolve_workers(n_workers):
     # n_workers: integer >= 1, or None for half the logical CPUs (~ the physical cores: with
-    # hyperthreading, more processes than cores is slower). Returns the number of processes.
+    # hyperthreading, more processes than cores is slower). Returns the number of processes,
+    # never more than the logical CPUs of this computer (the yaml may come from another one).
     # Each process costs a few seconds to start (imports scipy/pandas): with few tracks, use 1
+    n_cpus = os.cpu_count() or 1    # cpu_count() can return None if it cannot be determined
     if n_workers is None:
-        return max(1, (os.cpu_count() or 2) // 2)
+        return max(1, n_cpus // 2)
     n_workers = check_count("n_workers", n_workers)
     if n_workers == 0:
         raise ValueError("n_workers must be >= 1 (or null for half the CPUs)")
+    if n_workers > n_cpus:
+        warnings.warn(f"n_workers = {n_workers} but this computer has {n_cpus} logical CPUs: "
+                      f"using {n_cpus} processes (null uses half of them, usually the fastest)",
+                      stacklevel=2)
+        return n_cpus
     return n_workers
 
 
