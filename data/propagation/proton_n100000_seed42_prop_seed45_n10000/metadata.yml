@@ -1,0 +1,83 @@
+created: '2026-11-16T17:27:56'
+git_commit: 0fa5b4a6b10cf2b522ea495756f257c930f9c973
+git_uncommitted_changes: true
+n_rows: 10000
+config_source: configs\config.yaml
+input: init_beam/proton_n100000_seed42
+input_created: '2026-10-30T13:20:24'
+seed: 45
+n_input_tracks: 100000
+n_max: 10000
+n_tracks: 10000
+n_stopped: 0
+particle: p
+layout_name: layout_10Det_2Lay1PhDet_1MagDet_5fa9fe
+layout_hash: 5fa9fe
+planes:
+- name: D_before_phantom_1
+  z: 25.0
+- name: D_phantom_start
+  z: 50.0
+- name: D_layer_1_to_2
+  z: 150.0
+- name: D_phantom_end
+  z: 200.0
+- name: D_gap_1
+  z: 266.6666666666667
+- name: D_gap_2
+  z: 333.33333333333337
+- name: D_magnet_start
+  z: 400.0
+- name: D_magnet_1
+  z: 550.0
+- name: D_magnet_end
+  z: 700.0
+- name: D_after_magnet_1
+  z: 800.0
+geometry:
+  spacing_after_last: 200
+  phantom:
+    enabled: true
+    z_start: 50.0
+    layers:
+    - material: WATER
+      thickness: 100.0
+    - material: BONE
+      thickness: 50.0
+  magnet:
+    enabled: true
+    z_start: 400.0
+    z_length: 300.0
+    x_half_gap: 50.0
+    y_height: 100
+    B0: 1.0
+    model: biot_savart
+    biot_savart:
+      n_filaments: 20
+    interpolation:
+      enabled: true
+      dx: 1.0
+      dz: 0.5
+  detector_planes:
+    enabled: true
+    sigma_x: 0.1
+    placement:
+      n_before_phantom: 1
+      n_after_phantom_before_magnet: 2
+      n_after_magnet: 1
+      n_inside_magnet: 1
+      inside_phantom: true
+propagator:
+  input: init_beam/proton_n100000_seed42
+  seed: 45
+  n_max: 10000
+  n_workers: 8
+  step: 1.0
+  adaptive: false
+  tolerances:
+    x: 1.0e-06
+    tx: 1.0e-08
+    qp_rel: 1.0e-08
+  scattering:
+    enabled: true
+    max_slice: 5.0

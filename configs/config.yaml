@@ -122,8 +122,11 @@ propagator:
   # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
   input: init_beam/proton_n100000_seed42   # dataset of initial beam, relative to data/ (charged particles)
   seed: 45    # seed for scattering kicks; must differ from the seed of the input
-  n_max: 1000 # number of tracks to propagate, chosen at random from the input (null: all of them).
+  n_max: 10000 # number of tracks to propagate, chosen at random from the input (null: all of them).
               # Must be <= the number of tracks of the input. Write it as an integer (1000, not 1e3)
+  n_workers: 8      # processes for the propagation (src/propagator/multiprocess_propagation.py): null = half the CPUs,
+                    # 1 = serial. The result does not depend on it. Each process takes a few s to
+                    # start: only worth it from a few hundred tracks (1000 tracks: 71 s -> 30 s with 4-8)
 
   step: 1.0                   # [mm] RK step (fixed), or initial and maximum step (adaptive)
   adaptive: false             # adaptive steps (error control with the tolerances) instead of fixed ones

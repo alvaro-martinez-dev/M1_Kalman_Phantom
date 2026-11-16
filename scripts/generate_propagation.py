@@ -14,6 +14,7 @@
 #   python -m scripts.generate_propagation                       # uses configs/config.yaml
 #   python -m scripts.generate_propagation --n-max 200           # 200 random tracks (overrides propagator.n_max)
 #   python -m scripts.generate_propagation --no-plot             # skips the plot of run.plot
+#   python -m scripts.generate_propagation --workers 4           # 4 processes (overrides propagator.n_workers)
 #   python -m scripts.generate_propagation --input init_beam/proton_n1000_seed1 --name test --overwrite
 
 import argparse
@@ -22,7 +23,8 @@ from pathlib import Path
 from plotting.plot_tracks import REPORT_NAME, plot_tracks
 from src.field import build_field
 from src.geometry.layout import layout_name
-from src.montecarlo.propagation import plane_list, propagate_tracks, select_tracks, selection_rng
+from src.montecarlo.propagation import plane_list, select_tracks, selection_rng
+from src.propagator.multiprocess_propagation import propagate_tracks_parallel, resolve_workers
 from src.utils.config_loader import (CONFIG_DIR, get_key, load_config, make_detector_planes, make_geometry,
                                      make_propagator, particle_by_name)
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, load_dataset, save_dataset
@@ -37,6 +39,8 @@ def main():
                         help="dataset of initial tracks, relative to data/ (default: propagator.input)")
     parser.add_argument("--n-max", type=int, default=None,
                         help="propagate only n tracks, chosen at random (default: propagator.n_max)")
+    parser.add_argument("--workers", type=int, default=None,
+                        help="number of processes (default: propagator.n_workers; 1 = serial)")
     parser.add_argument("--name", default=None,
                         help="dataset folder name (default: <input name>_prop_seed<seed>[_n<n_max>])")
     parser.add_argument("--overwrite", action="store_true",
@@ -78,11 +82,13 @@ def main():
 
     # 3. Propagation (no kicks if the scattering is disabled)
     kick_seed = seed if propagator.max_slice is not None else None
+    n_workers = resolve_workers(args.workers if args.workers is not None
+                                else cfg["propagator"].get("n_workers", 1))
     print(f"Propagating {len(df_tracks)} of the {len(df_input)} {particle.name} tracks of {input_path} "
           f"through {len(planes)} planes "
-          f"(scattering {'on' if kick_seed is not None else 'off'})")
-    states, tracks = propagate_tracks(df_tracks, propagator, planes, kick_seed,
-                                      progress_every=max(1, len(df_tracks) // 20))
+          f"(scattering {'on' if kick_seed is not None else 'off'}, {n_workers} processes)")
+    states, tracks = propagate_tracks_parallel(df_tracks, propagator, planes, kick_seed,
+                                               n_workers=n_workers)
 
     # 4. Save
     input_name = Path(input_path).name
