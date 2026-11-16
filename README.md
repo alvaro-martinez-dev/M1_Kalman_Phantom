@@ -94,14 +94,18 @@ To redo only the plot report of an existing dataset:
 python -m plotting.plot_init_beam init_beam/proton_n100000_seed42
 ```
 
-### (3) Generate system and detector layout (optional, visual check)
+### (3) Generate system layout and magnetic field (optional, visual check)
 
 ```bash
 python -m scripts.generate_layout
+python -m scripts.check_field
 ```
 
-This step is only a visual check of the geometry: nothing else reads its output. The
-propagation of step (4) builds the geometry from the yaml by itself, so this step can be skipped.
+This step is only a visual check of the geometry and of the magnetic field: nothing else reads
+its output. The propagation of step (4) builds the geometry and the field from the yaml by
+itself, so this step can be skipped.
+
+#### Layout
 
 Builds the geometry (phantom, phantom interfaces, magnet) and the detector planes from the
 `geometry` block of `configs/config.yaml` and saves the layout along z in
@@ -135,6 +139,24 @@ python -m scripts.generate_layout --plot               # layout + report.pdf, wh
 python -m scripts.generate_layout --no-plot            # layout only
 python -m plotting.plot_layout geometry/layout_11Det_2Lay0PhDet_2MagDet_4b77bc   # redo only the report
 ```
+
+#### Magnetic field
+
+Builds the field of the `geometry.magnet` block exactly as the propagator uses it
+(`src.field.build_field`: `model`, `B0` and `interpolation`) and saves it in
+`data/field/field_<model>[_interp]_<hash>/`, with `hash` a short deterministic hash of the
+`magnet` block and of the extent of the system (which sets the interpolation grid):
+
+- `field.pdf`: By(z) along the whole system at x = 0 and x = `x_offset`, with the magnet edges
+  and the uniformity window, and By(x) across the gap at the magnet centre, with the plates.
+  If `interpolation.enabled`, the source field (no interpolation) is drawn dashed on top
+- `metadata.yml`: date, git commit, the `magnet` block used, the plot ranges and the results:
+  By at the centre, max deviation in the uniformity window, integral of By dz at x = 0,
+  effective length and (if interpolated) max interpolation error
+
+Options: `--config <name or path>`, `--x-offset <mm>` (default: 0.8 `x_half_gap`),
+`--window <mm>` (half width of the uniformity window, default 100), `--name <folder>`,
+`--overwrite`. It fails if the magnet is disabled (there is no field to plot).
 
 ### (4) Propagate the tracks through the system (Monte Carlo truth)
 
@@ -241,11 +263,13 @@ M1_Kalman_Phantom/
 │   ├── generate_init_beam.py
 │   ├── generate_layout.py
 │   ├── generate_propagation.py
-│   └── check_biot_savart.py
+│   └── check_field.py
+├── scans/                   standalone studies of the field model (Biot-Savart, filaments, interpolation dz...)
 ├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks)
 ├── data/                    generated outputs, one folder per run
 │   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
 │   ├── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
+│   ├── field/               field_<model>[_interp]_<hash>/: field.pdf, metadata.yml
 │   └── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml,
 │                            tracks_on_layout.pdf
 ├── notebooks/               exploration and validation
