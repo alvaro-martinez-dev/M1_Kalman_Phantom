@@ -14,7 +14,7 @@ HASH_LENGTH = 6   # hex characters of the layout hash in the folder name
 
 # Parameters that define the layout, already validated and normalised by Geometry and
 # DetectorPlanes (eg 100 and 100.0 give the same value). Field parameters (B0, model...)
-# and sigma_x are left out: they do not change the layout.
+# are left out: they do not change the layout (the resolution sigma_x is not in geometry).
 # A disabled phantom/magnet has its parameters at None.
 # x_half_gap: transverse size of the magnet, drawn in the report (None without magnet)
 # Returns: dict

@@ -258,6 +258,59 @@ python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n10
 Options: `--n-tracks <1-7>` (default 5), `--seed <n>` (choice of the tracks, default 0),
 `--dz <mm>` (spacing of the points of the trajectory, default 2), `--out <pdf>`.
 
+### (5) Generate the hits on the detector planes (Monte Carlo measurement)
+
+```bash
+python -m scripts.generate_hits
+```
+
+Takes the propagation dataset of `hits.input` (step (4)) and smears the true x of each track at
+each plane it reached with the resolution of the detectors:
+
+x_meas = x_true + N(0, `hits.sigma_x`)
+
+The system is 2D (x, z), so each plane measures only x (not the slope nor the momentum). For the
+Kalman filter each hit is a scalar measurement with H = [1, 0, 0] on (x, tx, q/p) and variance
+`sigma_x`². This step is fast (seconds) and needs neither the geometry nor the field (the z of the
+planes are in the propagation dataset), so several resolutions or seeds can be tried on the same
+propagation.
+
+The output goes to `data/hits/<propagation name>_hits_sigma<sigma_x>mm_seed<seed>/`:
+
+- `hits.parquet`: one row per (track, plane reached), **only what the detector measures**:
+  `track_id`, `input_row`, `event_id`, `plane_index`, `plane`, `z` (of the plane), `x_meas`,
+  `sigma_x`. The truth stays in `states.parquet` of the propagation and is joined by
+  (`track_id`, `plane_index`) to validate (residuals, pulls)
+- `tracks.parquet`: one row per track: `track_id`, `input_row`, `event_id`, `particle`, `n_hits`
+- `metadata.yml`: date, git commit, the propagation dataset used (`input`, its creation date and
+  git commit) and, under `propagation`, its initial beam dataset, seed and layout, so the hits
+  can be traced back to the beam; plus the `seed`, `sigma_x` and the detector planes
+- `report.pdf`, if `run.plot` is `true`: the hits against the MC truth of their propagation
+  (`plotting/plot_hits.py`):
+  1. residuals x_meas − x_true and pulls (x_meas − x_true)/σ_x of all the hits, against
+     N(0, σ_x) and N(0, 1) with their χ², and the residual against x_true (no correlation expected:
+     the error does not depend on where the track crosses the plane)
+  2. per detector plane: hits (against the tracks), and mean and std of the residuals against
+     0 and σ_x, with their errors and χ²
+  3. a few tracks: their hits and true states at the planes, and their residuals
+
+Each track has its own random stream for its measurement errors (from `hits.seed` and its row in
+the initial beam dataset, as the kicks of the propagation): the hits of a track do not depend on
+the other tracks or on how many there are.
+
+Options: `--config <name or path>`, `--input <propagation dataset>` (default: `hits.input`),
+`--sigma-x <mm>` (default: `hits.sigma_x`), `--seed <n>` (default: `hits.seed`),
+`--name <folder>`, `--overwrite`, `--plot`/`--no-plot` (default: `run.plot`).
+
+To redo only the report of an existing dataset:
+
+```bash
+python -m plotting.plot_hits hits/proton_n100000_seed42_prop_seed45_n10000_hits_sigma0.1mm_seed46
+```
+
+Options: `--n-tracks <1-7>` (tracks of page 3, default 5), `--seed <n>` (their choice, default 0),
+`--out <pdf>`.
+
 ### Tests
 
 ```bash
@@ -271,7 +324,7 @@ python -m pytest -q tests/test_geometry.py
 ```
 M1_Kalman_Phantom/
 ├── configs/
-│   └── config.yaml          all the parameters: run, beams, decays, geometry, propagator, kalman
+│   └── config.yaml          all the parameters: run, beams, decays, geometry, propagator, hits, kalman
 ├── src/                     main code (importable as src.*)
 │   ├── constants.py         particles, decay channels, materials, physical constants
 │   ├── geometry/            layout along z
@@ -286,22 +339,24 @@ M1_Kalman_Phantom/
 │   │   ├── rk4.py           Runge-Kutta and Runge-Kutta-Nyström integrators
 │   │   ├── scattering.py    multiple scattering per slice: theta0, (dx, dtx) covariance, kicks
 │   │   └── multiprocess_propagation.py   propagation of many tracks in parallel processes
-│   ├── montecarlo/          initial beam, two-body decays, track table, full propagation MC
+│   ├── montecarlo/          initial beam, two-body decays, track table, full propagation MC, hits
 │   ├── kalman/              Kalman filter (in progress)
 │   └── utils/               yaml loading, dataset save/load, input validation
 ├── scripts/                 entry points, run as python -m scripts.<name>
 │   ├── generate_init_beam.py
 │   ├── generate_layout.py
 │   ├── generate_propagation.py
+│   ├── generate_hits.py
 │   └── check_field.py
 ├── scans/                   standalone studies of the field model (Biot-Savart, filaments, interpolation dz...)
-├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks)
+├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks, plot_hits)
 ├── data/                    generated outputs, one folder per run
 │   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
 │   ├── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
 │   ├── field/               field_<model>[_interp]_<hash>/: field.pdf, metadata.yml
-│   └── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml,
+│   ├── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml,
 │                            tracks_on_layout.pdf
+│   └── hits/                <propagation>_hits_sigma<sigma_x>mm_seed<seed>/: hits.parquet, tracks.parquet, metadata.yml, report.pdf
 ├── notebooks/               exploration and validation
 ├── tests/                   pytest tests (python -m pytest)
 ├── pdf_info/                project proposal, concept figure and guides
@@ -332,6 +387,8 @@ so any result can be traced back to the code and config that produced it.
   JINST 4 (2009) P04001.
 - Zeltkevic, M. (1998, April 15). Runge-Kutta methods. Course 10.001 Notes
   Massachusetts Institute of Technology. Retrieved November 10, 2026, from https://web.mit.edu/10.001/Web/Course_Notes/Differential_Equations_Notes/node5.html
+- V. D. Elvira, “Impact of detector simulation in particle physics collider 
+  experiments highlights”, EPJ Web Conf. 214, 02019 (2019). doi:10.1051/epjconf/201921402019
 - S. Navas et al. (Particle Data Group), *Review of Particle Physics*,
   Phys. Rev. D 110 (2024) 030001. See the reviews *Passage of particles
   through matter* and *Kinematics*.

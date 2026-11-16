@@ -221,8 +221,9 @@ def stats_title(x, mean, sigma, chi2, ndof):
 
 
 # Histogram of a column and its expected counts (ax), with the pulls below (ax_pull)
+# xlabel: label of the x axis (default: the one of the column in VARIABLES)
 # Returns: chi2, ndof of the pulls
-def expected_panel(ax, ax_pull, column, x, edges, expected):
+def expected_panel(ax, ax_pull, column, x, edges, expected, xlabel=None):
 
     # 1. Observed counts and pulls
     counts, _ = np.histogram(x, edges)
@@ -243,7 +244,7 @@ def expected_panel(ax, ax_pull, column, x, edges, expected):
     ax_pull.axhline(0, color=COLOR_EXPECTED, linewidth=1)
     ax_pull.set_ylim(-limit, limit)
     ax_pull.set_yticks([-3, 0, 3])
-    ax_pull.set_xlabel(VARIABLES[column][0], fontsize=10, color=COLOR_TEXT)
+    ax_pull.set_xlabel(VARIABLES[column][0] if xlabel is None else xlabel, fontsize=10, color=COLOR_TEXT)
     ax_pull.set_ylabel("Pull", fontsize=9, color=COLOR_MUTED)
 
     # 4. Fixed proportions, with the pulls right below the histogram
