@@ -77,7 +77,7 @@ geometry:
 
   # enabled: false removes the element; its other keys are kept but not read
   phantom:
-    enabled: true
+    enabled: true #false
     z_start: 50.0            # [mm] entrance of the first layer
     layers:                   # in beam order; material = Material in src/constants.py
       - {material: WATER, thickness: 100.0}
