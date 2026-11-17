@@ -365,3 +365,37 @@ class TestBiotSavartMaxwell:
                             z_int_halfrange=10.0, z_int_step=5.0)   # cheap normalisation
         raw = abs(f._raw_By(0.0, 0.0))
         assert raw == pytest.approx(1.0 / pitch, rel=0.02)
+class TestPlateJump:
+    """By jumps by mu0 K across each current plate (Ampere), K = 1 / pitch in raw units."""
+
+    N, Y_H = 81, 400.0     # pitch = 5 mm
+
+    @classmethod
+    def jump(cls, f, delta, side=+1):
+        d = side * X_HALF_GAP
+        out = f._raw_B(d + side * delta, 0.0, Z_CENTRE)[1]
+        inn = f._raw_B(d - side * delta, 0.0, Z_CENTRE)[1]
+        return (out - inn) * (cls.Y_H / (cls.N - 1))
+
+    @classmethod
+    def make(cls):
+        return BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, cls.Y_H, cls.N,
+                               z_int_halfrange=10.0, z_int_step=5.0)   # cheap normalisation
+
+    def test_jump_equals_mu0K(self):
+        """Linear extrapolation of the jump to delta -> 0 gives mu0 K (2 pitch <= delta <= 4 pitch)."""
+        f = self.make()
+        j1, j2 = self.jump(f, 10.0), self.jump(f, 20.0)
+        j0 = 2.0 * j1 - j2
+        assert j0 == pytest.approx(1.0, rel=0.02)
+
+    def test_jump_sign(self):
+        """Outer minus inner By is positive: By = -mu0 K between the plates, 0 outside."""
+        f = self.make()
+        assert self.jump(f, 10.0, side=+1) > 0.0
+        assert self.jump(f, 10.0, side=-1) > 0.0
+
+    def test_jump_same_on_both_plates(self):
+        f = self.make()
+        assert self.jump(f, 10.0, side=+1) == pytest.approx(self.jump(f, 10.0, side=-1),
+                                                            rel=1e-10)
