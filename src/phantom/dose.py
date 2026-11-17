@@ -100,3 +100,22 @@ def dose_profile(geometry, T0_MeV, n_steps=200, particle=None):
         T = max(T - dEdx * dz, 0.0)
 
     return z_arr, T_arr, D_cumulative
+
+def check_dose_limits(dose_Gy: float):
+    """
+    Compares the calculated dose with international standards.
+    Reference: ICRP Publication 103 (2007) for radiation protection limits.
+    Reference: ICRU Report 83 for radiotherapy (typical tumor dose is ~2 Gy per fraction).
+    """
+    # Public exposure limit: 1 mSv/year = 0.001 Gy
+    # Occupational limit: 20 mSv/year = 0.020 Gy
+    # Therapy limit (single fraction): 2 Gy
+    
+    if dose_Gy < 0.001:
+        print(f"Dose {dose_Gy:.2e} Gy is BELOW the public safety limit (1 mSv/year). Safe.")
+    elif dose_Gy < 0.02:
+        print(f"Dose {dose_Gy:.2e} Gy is within OCCUPATIONAL limits (20 mSv/year).")
+    elif dose_Gy < 2.0:
+        print(f"Dose {dose_Gy:.2e} Gy is above protection limits but below a typical RADIOTHERAPY fraction (2 Gy).")
+    else:
+        print(f"Dose {dose_Gy:.2e} Gy EXCEEDS typical radiotherapy fraction. Ensure this is intended for target volume only.")

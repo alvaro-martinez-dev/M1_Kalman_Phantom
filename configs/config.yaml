@@ -80,9 +80,9 @@ geometry:
     enabled: true #false
     z_start: 50.0            # [mm] entrance of the first layer
     layers:                   # in beam order; material = Material in src/constants.py
-      - {material: WATER, thickness: 100.0}
-      - {material: BONE, thickness: 50.0}
-
+      - {material: WATER, thickness: 50.0}
+      - {material: BONE, thickness: 20.0}
+      - {material: WATER, thickness: 50.0}
   magnet:
     enabled: true             # false: no magnet and no field (straight lines in vacuum)
     z_start: 400.0           # [mm] start of the magnet

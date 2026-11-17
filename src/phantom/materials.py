@@ -121,7 +121,9 @@ def bethe_bloch(T_MeV, material: Material, particle: Particle = PROTON):
     dEdx_cm = (K_BETHE * z**2 * material.Z_A * material.density / beta**2 * (log_term - beta**2 - 0.5 * delta))
     
     return dEdx_cm * MEV_PER_CM_TO_MM
-
+# Bethe-Bloch is valid for heavy charged particles like protons, muons, and alphas.
+# It is NOT valid for electrons because bremsstrahlung dominates at high energies. 
+# Reference: PDG 2022, Passage of particles through matter.
 
 def range_csda(T_MeV, material: Material, particle: Particle = PROTON):
     """
@@ -171,7 +173,8 @@ def _range_table(material: Material, particle: Particle):
     pieces = [quad(integrand, a, b, epsabs=1e-12, epsrel=1e-12)[0] for a, b in zip(T_nodes[:-1], T_nodes[1:])]
     R_nodes = np.concatenate(([0.0], np.cumsum(pieces)))
     return CubicSpline(np.log(T_nodes), R_nodes), T_nodes[0], T_nodes[-1]
-
+# lru_cache + CubicSpline table: the MC propagator calls range_csda thousands of times per track,
+# so precomputing it with a cubic spline (~1e-8 error) avoids running scipy.quad at every step and keeps the simulation fast.
 
 def range_csda_fast(T_MeV, material: Material, particle: Particle = PROTON):
     """
