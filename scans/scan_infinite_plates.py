@@ -3,7 +3,7 @@
 In the raw units (mu0 = 1, unit current per filament) the surface current is
 K = 1 / pitch, so ratio = By_raw * pitch, and it must tend to 1.
 
-    .venv\\Scripts\\python.exe scan\\scan_infinite_plates.py
+    .venv\Scripts\python.exe scans\scan_infinite_plates.py  just for windows
 """
 import sys
 from pathlib import Path
@@ -17,6 +17,7 @@ from src.field import BiotSavartField
 _m = load_config("config")["geometry"]["magnet"]
 X_HALF_GAP = _m["x_half_gap"]        # plate position, from the config
 PITCH = _m["y_height"] / (_m["biot_savart"]["n_filaments"] - 1)   # pitch of the real magnet
+SCAN_PITCH = 5.0
 
 
 def ratio(z_start, z_length, x_half_gap, y_height, n):
@@ -30,9 +31,9 @@ def ratio(z_start, z_length, x_half_gap, y_height, n):
 
 print(f"{'size [mm]':>10} {'n_fil':>6} {'By/(mu0 K)':>11} {'deficit':>9}")
 for size in (500.0, 1000.0, 2000.0, 4000.0, 8000.0):
-    n = int(round(size / PITCH)) + 1
+    n = int(round(size / SCAN_PITCH)) + 1
     r = ratio(-size / 2.0, size, X_HALF_GAP, size, n)
-    print(f"{size:10.0f} {n:6d} {r:11.4f} {1.0 - r:9.4f}")
+    print(f"{size:10.0f} {n:6d} {abs(r):11.4f} {1.0 - abs(r):9.4f}")
 
 m = load_config("config")["geometry"]["magnet"]
 n = m["biot_savart"]["n_filaments"]

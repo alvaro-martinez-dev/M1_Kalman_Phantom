@@ -88,11 +88,11 @@ geometry:
     z_start: 400.0           # [mm] start of the magnet
     z_length: 300.0             # [mm]
     x_half_gap: 50.0            # [mm] plates at x = +-half_gap
-    y_height: 100               # [mm] thickness of the magnet plates in the y axis
+    y_height: 400               # [mm] thickness of the magnet plates in the y axis
     B0: 1.0                   # [T] teslas
     model: biot_savart        # biot_savart / hard_edge
     biot_savart:
-      n_filaments: 20
+      n_filaments: 81
     interpolation:            # tabulate the field once, on a grid covering the whole system in z
       enabled: true           # and the magnet gap in x (outside the gap the field is zero)
       dx: 1.0                 # [mm]

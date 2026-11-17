@@ -364,4 +364,4 @@ class TestBiotSavartMaxwell:
                             y_height=y_height, n_filaments=n,
                             z_int_halfrange=10.0, z_int_step=5.0)   # cheap normalisation
         raw = abs(f._raw_By(0.0, 0.0))
-        assert raw == pytest.approx(1.0 / pitch, rel=0.05)
+        assert raw == pytest.approx(1.0 / pitch, rel=0.02)
