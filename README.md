@@ -247,8 +247,12 @@ tracks done.
   `propagate_tracks_parallel` must have its code under `if __name__ == "__main__":`.
 
 The plot propagates the chosen tracks again with many points (the dataset only has the
-states at the planes) and checks that they match the dataset at the planes. To redo only the
-plot of an existing dataset, or with other options:
+states at the planes). It checks that they are the tracks of the dataset by propagating them once
+more exactly as the Monte Carlo did (only the planes as output points, same random stream), which
+must give the same x at the planes: the extra points of the drawing are extra cuts of the
+fixed-step Runge-Kutta, so the drawn line itself may differ by ~1e-3 mm. A warning means that the
+code or the input changed after the propagation. To redo only the plot of an existing dataset, or
+with other options:
 
 ```bash
 python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n1000
@@ -311,6 +315,94 @@ python -m plotting.plot_hits hits/proton_n100000_seed42_prop_seed45_n10000_hits_
 Options: `--n-tracks <1-7>` (tracks of page 3, default 5), `--seed <n>` (their choice, default 0),
 `--out <pdf>`.
 
+### (6) Fit the tracks with the Kalman filter
+
+```bash
+python -m scripts.generate_fit
+```
+
+Takes the hits dataset of `kalman.input` (step (5)) and fits each track with an extended Kalman
+filter on the state (x, tx, q/p) and, if `kalman.smoother` is `true`, the Rauch-Tung-Striebel
+smoother on top of it (`src/kalman/`). The fit never reads the MC truth: it only sees `x_meas` and
+`sigma_x` of the hits.
+
+**The model of the fit is the one of the Monte Carlo.** The geometry, the field and the
+propagator are rebuilt from the metadata of the propagation dataset the hits come from, and the
+prior from the `beam` block of its initial beam dataset, not from the current yaml: the fit always
+uses the system that was simulated. The **code** must still be the same: if the field or the
+propagator code changed after the propagation, the fit is biased (e.g. a change of the B0
+normalisation of Biot-Savart biases q/p by several σ), so regenerate the propagation and the hits.
+A warning is printed if the propagation was regenerated after the hits were made from it.
+
+For each track, from the prior at z = 0 and hit by hit in beam order:
+
+- **Prior**: the beam, x0 = `beam.x0`, tx0 = tan(`beam.theta0`), q/p0 = q/`beam.p0`, with
+  C0 = diag(σ_x0², ((1 + tx0²) σ_θ0)², (|q| σ_p0 / p0²)²). Only the parameters of the beam, never
+  the true initial state of the track.
+- **Prediction** (`src/kalman/transport.py`): the mean track is transported to the next plane
+  with the propagator of the MC without kicks, cut exactly as the MC cuts it (boundaries, field
+  jumps, scattering slices), so it follows the same model everywhere (RKN with the fringe field
+  in vacuum, RK on (x, tx, q/p) in the phantom). The Jacobian F is computed by finite differences
+  on each piece (forward by default, `kalman.central_differences` for central ones) and chained,
+  F = F_n ··· F_1. The process noise Q is the multiple scattering: at the end of each slice, the
+  2x2 covariance of (dx, dtx) of `src/propagator/scattering.py`, the same one the MC samples its
+  kicks from, evaluated on the mean track and transported by F to the plane.
+- **Update** (`src/kalman/filter.py`): each hit is a scalar measurement, H = [1, 0, 0],
+  V = σ_x². Residual r = m − H x_pred, S = H C_pred Hᵀ + V, gain K = C_pred Hᵀ / S, covariance
+  updated in Joseph form. χ²_k = r² / S.
+- **Smoother** (`src/kalman/smoother.py`): RTS backwards over the filter, so that the estimate at
+  each plane uses all the hits of the track. It matters most for q/p, which is measured by the
+  bending in the magnet, after the phantom: the filter reaches the phantom planes knowing little
+  more than the prior, the smoother brings the information of the magnet back to them.
+
+χ² of a track = Σ χ²_k of the filter. Since the prior is the true distribution of the beam, the
+predicted residuals are independent N(0, 1) and **ndf = n_hits** (not n_hits − 3).
+
+The output goes to `data/fit/<hits name>_fit[_n<n_max>]/`:
+
+- `tracks.parquet`: one row per track: `track_id`, `input_row`, `event_id`, `n_hits`, `status`
+  (`ok`, or `stopped` if the predicted track stops in the phantom before one of its hits; such a
+  track has no fit rows), `chi2`, `ndf`
+- `fit.parquet`: one row per (track, hit): the identifiers and `z`, `x_meas`, `sigma_x` of the
+  hit and, for each stage `pred` (prediction), `filt` (filter) and `smooth` (smoother):
+  `x_<stage>`, `tx_<stage>`, `q_over_p_<stage>` and their errors `<var>_<stage>_err`; the
+  predicted residuals `res_pred`, `res_pred_err`, `chi2_k` and the smoothed ones `res_smooth`,
+  `res_smooth_err` (variance V − C_xx: the hit is part of the estimate). The truth is joined
+  by (`track_id`, `plane_index`) with `states.parquet` of the propagation
+- `metadata.yml`: date, git commit, the hits dataset used and what it was made from (propagation
+  and its creation date and commit, initial beam and its `beam` block), the prior, the options of
+  the fit (`smoother`, `central_differences`, finite-difference steps) and a summary (tracks fitted
+  and stopped, mean χ²/ndf, time)
+- `report.pdf`, if `run.plot` is `true`: the fit against the MC truth (`plotting/plot_fit.py`):
+  1. pulls (fit − true)/σ_fit of x, tx and q/p at all the planes against N(0, 1), one page for
+     the filter and one for the smoother. The pulls of a track are correlated (q/p barely changes
+     along it), so the χ² of these histograms can be > 1 with std ≈ 1
+  2. χ² of the tracks against χ²(ndf), and its probability against a flat distribution
+  3. per plane: resolution std(fit − true) of x, tx and q/p against the error the fit gives,
+     filter and smoother side by side
+  4. per plane: mean and std of the pulls, against 0 and 1, with their χ²
+  5. a few tracks: fit − true of x and q/p along z with the ±1σ band of the fit, and the hits
+
+Options: `--config <name or path>`, `--input <hits dataset>` (default: `kalman.input`),
+`--n-max <n>` (fit only the first n tracks, default: `kalman.n_max`),
+`--smoother`/`--no-smoother` (default: `kalman.smoother`), `--workers <n>` (default:
+`kalman.n_workers`), `--name <folder>`, `--overwrite`, `--plot`/`--no-plot` (default: `run.plot`).
+
+The tracks are fitted in parallel as the propagation of step (4) (same `n_workers` rules,
+`null` = half the logical CPUs): the tracks are independent, so the result does not depend on the
+number of processes. Speed: about 0.12 s per track in one process with `step: 1.0` (each piece
+is propagated 4 times for the Jacobian, 7 with central differences); 200 tracks take ~23 s with 8
+processes, most of it the start of the processes.
+
+To redo only the report of an existing fit:
+
+```bash
+python -m plotting.plot_fit fit/proton_n100000_seed42_prop_seed45_n1000_hits_sigma0.1mm_seed46_fit
+```
+
+Options: `--n-tracks <n>` (tracks of the last page, default 3), `--seed <n>` (their choice,
+default 0), `--out <pdf>`.
+
 ### Tests
 
 ```bash
@@ -340,23 +432,30 @@ M1_Kalman_Phantom/
 │   │   ├── scattering.py    multiple scattering per slice: theta0, (dx, dtx) covariance, kicks
 │   │   └── multiprocess_propagation.py   propagation of many tracks in parallel processes
 │   ├── montecarlo/          initial beam, two-body decays, track table, full propagation MC, hits
-│   ├── kalman/              Kalman filter (in progress)
+│   ├── kalman/              track fit
+│   │   ├── transport.py     prediction: mean track, Jacobian F (finite differences), process noise Q
+│   │   ├── filter.py        forward Kalman filter: update with each hit, chi2
+│   │   ├── smoother.py      Rauch-Tung-Striebel smoother
+│   │   └── fit.py           model from the dataset metadata, beam prior, fit of many tracks (parallel)
 │   └── utils/               yaml loading, dataset save/load, input validation
 ├── scripts/                 entry points, run as python -m scripts.<name>
 │   ├── generate_init_beam.py
 │   ├── generate_layout.py
 │   ├── generate_propagation.py
 │   ├── generate_hits.py
+│   ├── generate_fit.py
 │   └── check_field.py
 ├── scans/                   standalone studies of the field model (Biot-Savart, filaments, interpolation dz...)
-├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks, plot_hits)
+├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks, plot_hits,
+│                            plot_fit)
 ├── data/                    generated outputs, one folder per run
 │   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
 │   ├── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
 │   ├── field/               field_<model>[_interp]_<hash>/: field.pdf, metadata.yml
 │   ├── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml,
 │                            tracks_on_layout.pdf
-│   └── hits/                <propagation>_hits_sigma<sigma_x>mm_seed<seed>/: hits.parquet, tracks.parquet, metadata.yml, report.pdf
+│   ├── hits/                <propagation>_hits_sigma<sigma_x>mm_seed<seed>/: hits.parquet, tracks.parquet, metadata.yml, report.pdf
+│   └── fit/                 <hits>_fit[_n<n>]/: fit.parquet, tracks.parquet, metadata.yml, report.pdf
 ├── notebooks/               exploration and validation
 ├── tests/                   pytest tests (python -m pytest)
 ├── pdf_info/                project proposal, concept figure and guides
