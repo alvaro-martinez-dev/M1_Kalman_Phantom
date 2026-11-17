@@ -1,0 +1,53 @@
+created: '2026-11-17T17:52:15'
+git_commit: 87c2123153d07939b2450e096ccc355d385664cc
+git_uncommitted_changes: true
+config_source: C:\Users\alvar\AppData\Local\Temp\claude\f6ef1afabc46347a\39b74359-fb1b-4925-9c31-febac8d2420e\scratchpad\regen_configs\field_field_biot_savart_interp_d9d741.yaml
+field_class: InterpolatedField
+magnet_hash: da203d
+magnet_parameters:
+  z_start: 400.0
+  z_length: 300.0
+  x_half_gap: 50.0
+  B0: 1.0
+  model: biot_savart
+  y_height: 100.0
+  biot_savart:
+    n_filaments: 20.0
+  interpolation:
+    dx: 1.0
+    dz: 0.5
+  z_end_system: 900.0
+z_end_system: 900.0
+plot_ranges:
+  z_mm:
+  - 0.0
+  - 900.0
+  - 2000
+  x_mm:
+  - -50.0
+  - 50.0
+  - 401
+  x_offset_mm: 40.0
+  window_half_width_mm: 100.0
+results:
+  By_centre_T: 1.0642191846777511
+  max_abs_deviation_in_window_T: 0.11087696267780411
+  relative_deviation_in_window: 0.10418620926419213
+  By_integral_x0_T_mm: 303.1353907378194
+  effective_length_mm: 284.84300518375807
+  max_abs_interpolation_error_z_T: 9.589623663586178e-05
+  max_abs_interpolation_error_x_T: 0.0037637074258662917
+magnet:
+  enabled: true
+  z_start: 400.0
+  z_length: 300.0
+  x_half_gap: 50.0
+  y_height: 100
+  B0: 1.0
+  model: biot_savart
+  biot_savart:
+    n_filaments: 20
+  interpolation:
+    enabled: true
+    dx: 1.0
+    dz: 0.5

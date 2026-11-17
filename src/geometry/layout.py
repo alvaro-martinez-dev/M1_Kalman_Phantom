@@ -2,14 +2,10 @@
 # detector planes), with the region and material on each side. It is meant to be saved and
 # inspected to check that the positions have been generated as expected
 
-import hashlib
-import json
-
 import pandas as pd
 
+from src.utils.hashing import short_hash
 from .geometry import Geometry, TOL
-
-HASH_LENGTH = 6   # hex characters of the layout hash in the folder name
 
 
 # Parameters that define the layout, already validated and normalised by Geometry and
@@ -38,15 +34,15 @@ def layout_parameters(geometry, detectors, x_half_gap):
 
 
 # Deterministic hash of the layout parameters: same parameters -> same hash, any change -> another
-# Returns: the first HASH_LENGTH hex characters of the sha256 of the parameters as sorted json
+# (the Lay<hash> of the folder names, see src/utils/hashing.py). The parameters are already
+# normalised by Geometry and DetectorPlanes
 def layout_hash(parameters):
 
-    text = json.dumps(parameters, sort_keys=True)
-    return hashlib.sha256(text.encode()).hexdigest()[:HASH_LENGTH]
+    return short_hash(parameters)
 
 
 # Name of the folder of data/geometry/ of a layout (scripts/generate_layout.py):
-#   layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>
+#   layout_Lay<hash>_<n>Det_<m>Layers_<p>PhDet_<k>MagDet
 # Returns: (name, parameters, hash), so a propagation can record which layout it was made on
 def layout_name(geometry, detectors, x_half_gap):
 
@@ -57,7 +53,8 @@ def layout_name(geometry, detectors, x_half_gap):
     n_magnet_detectors = detectors.n_inside_magnet if detectors and geometry.has_magnet else 0
     parameters = layout_parameters(geometry, detectors, x_half_gap)
     hash_ = layout_hash(parameters)
-    name = f"layout_{n_detectors}Det_{n_layers}Lay{n_phantom_detectors}PhDet_{n_magnet_detectors}MagDet_{hash_}"
+    name = (f"layout_Lay{hash_}_{n_detectors}Det_{n_layers}Layers_{n_phantom_detectors}PhDet_"
+            f"{n_magnet_detectors}MagDet")
     return name, parameters, hash_
 
 

@@ -1,6 +1,9 @@
 # scripts/generate_init_beam.py
 #
-# Generates an initial beam dataset from a yaml config and saves it in data/init_beam/<name>/
+# Generates an initial beam dataset from a yaml config and saves it in
+# data/init_beam/<beam>_n<n_events>_seed<seed>_Beam<hash>/, with hash = beam_hash of
+# src/utils/hashing.py (beam block + n_events + seed): the datasets made from this beam carry the
+# same Beam<hash> in their name
 #
 # Usage (from the repo root):
 #   python -m scripts.generate_init_beam                      # uses configs/config.yaml and run.beam
@@ -14,6 +17,7 @@ from pathlib import Path
 from plotting.plot_init_beam import REPORT_NAME, plot_init_beam
 from src.utils.config_loader import CONFIG_DIR, load_config, make_beam
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, load_dataset, save_dataset
+from src.utils.hashing import beam_hash
 
 
 def main():
@@ -24,7 +28,7 @@ def main():
     parser.add_argument("--beam", default=None,
                         help="block of beams: to simulate (default: run.beam of the yaml)")
     parser.add_argument("--name", default=None,
-                        help="dataset folder name (default: <beam>_n<n_events>_seed<seed>)")
+                        help="dataset folder name (default: <beam>_n<n_events>_seed<seed>_Beam<hash>)")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace the dataset folder if it already exists")
     parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
@@ -47,12 +51,14 @@ def main():
     df = make_beam(cfg["beams"][beam_name]).generate(n_events, seed=seed)
 
     # 3. Save
-    name = args.name or f"{beam_name}_n{n_events}_seed{seed}"
+    hash_ = beam_hash(cfg["beams"][beam_name], n_events, seed)
+    name = args.name or f"{beam_name}_n{n_events}_seed{seed}_Beam{hash_}"
     config_path = config_path.resolve()
     if config_path.is_relative_to(REPO_ROOT):
         config_path = config_path.relative_to(REPO_ROOT)  # e.g. configs/config.yaml
     params = {
         "config_source": str(config_path),
+        "beam_hash": hash_,                 # beam block + n_events + seed
         "run": {"beam": beam_name, "n_events": n_events, "seed": seed},
         "beam": cfg["beams"][beam_name],
     }

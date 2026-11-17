@@ -1,7 +1,9 @@
 # scripts/generate_hits.py
 #
 # Hits on the detector planes: takes a propagation dataset (data/propagation/...), smears the true
-# x at each plane with the detector resolution and saves the measurements in data/hits/<name>/:
+# x at each plane with the detector resolution and saves the measurements in
+# data/hits/<propagation name>_hits_sigma<sigma_x>mm_seed<seed>/ (so the name carries the hashes of
+# the propagation: Beam, Lay, Magn, Prop):
 #   hits.parquet:   one row per (track, plane reached), only what the detector measures
 #                   (see src/montecarlo/hits.py)
 #   tracks.parquet: one row per track (particle, number of hits)
@@ -83,7 +85,11 @@ def main():
             "n_tracks": prop_metadata.get("n_tracks"),
             "n_stopped": prop_metadata.get("n_stopped"),
             "layout_name": prop_metadata.get("layout_name"),
+            # hashes of what the propagation was made from (also in its folder name)
+            "beam_hash": prop_metadata.get("beam_hash"),
             "layout_hash": prop_metadata.get("layout_hash"),
+            "magnet_hash": prop_metadata.get("magnet_hash"),
+            "propagator_hash": prop_metadata.get("propagator_hash"),
         },
         "seed": seed,
         "sigma_x": float(sigma_x),

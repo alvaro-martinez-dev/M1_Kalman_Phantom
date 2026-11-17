@@ -1,0 +1,59 @@
+created: '2026-11-17T17:52:04'
+git_commit: 87c2123153d07939b2450e096ccc355d385664cc
+git_uncommitted_changes: true
+config_source: C:\Users\alvar\AppData\Local\Temp\claude\f6ef1afabc46347a\39b74359-fb1b-4925-9c31-febac8d2420e\scratchpad\regen_configs\layout_layout_10Det_2Lay1PhDet_1MagDet_ca2c34.yaml
+with_detectors: true
+n_detector_planes: 10
+n_phantom_layers: 2
+n_phantom_detector_planes: 1
+n_magnet_detector_planes: 1
+layout_hash: e8d12c
+layout_parameters:
+  z_start_phantom: 50.0
+  phantom_layers:
+  - material: WATER
+    thickness: 200.0
+  - material: BONE
+    thickness: 100.0
+  z_start_magnet: 400.0
+  z_length_magnet: 300.0
+  x_half_gap: 50.0
+  spacing_after_last: 200.0
+  placement:
+    n_before_phantom: 1
+    n_after_phantom_before_magnet: 2
+    n_after_magnet: 1
+    inside_phantom: true
+    n_inside_magnet: 1
+geometry:
+  phantom:
+    z_start: 50.0
+    layers:
+    - material: WATER
+      thickness: 200.0
+    - material: BONE
+      thickness: 100.0
+    enabled: true
+  magnet:
+    z_start: 400.0
+    z_length: 300.0
+    x_half_gap: 50.0
+    y_height: 100
+    B0: 1.0
+    model: biot_savart
+    biot_savart:
+      n_filaments: 20
+    interpolation:
+      enabled: true
+      dx: 1.0
+      dz: 2.0
+    enabled: true
+  detector_planes:
+    placement:
+      n_before_phantom: 1
+      n_after_phantom_before_magnet: 2
+      n_after_magnet: 1
+      n_inside_magnet: 1
+      inside_phantom: true
+    enabled: true
+  spacing_after_last: 200

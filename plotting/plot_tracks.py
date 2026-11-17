@@ -20,7 +20,7 @@
 # drawing move the nodes of the fixed-step RK, so the drawn line may differ by ~1e-3 mm.
 #
 # Usage (from the repo root), to redo the plot of an existing dataset:
-#   python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n1000
+#   python -m plotting.plot_tracks propagation/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000
 #   python -m plotting.plot_tracks <propagation> --n-tracks 7 --seed 3 --dz 1.0 --out tracks.pdf
 
 import argparse

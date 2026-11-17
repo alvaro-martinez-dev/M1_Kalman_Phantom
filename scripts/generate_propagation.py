@@ -2,7 +2,14 @@
 #
 # Monte Carlo of the full propagation: takes a dataset of initial tracks (e.g. data/init_beam/...),
 # propagates every track through the system with the scattering kicks and saves the TRUE state at
-# each detector plane in data/propagation/<name>/:
+# each detector plane in data/propagation/<name>/, with (src/utils/hashing.py)
+#   name = <beam>_Beam<h>_Lay<h>_Magn<h>_Prop<h>_seed<seed>[_n<n_max>]
+#   Beam: the initial beam dataset (its beam block, n_events and seed), cited by its hash
+#   Lay:  geometry and detector planes, as the folder of generate_layout (data/geometry/layout_Lay<h>_...)
+#   Magn: the field, as the folder of check_field (data/field/field_Magn<h>_...)
+#   Prop: the physics options of the propagator (step, adaptive, tolerances, scattering slices)
+# so two propagations of different systems never share a folder. An input that is not an initial
+# beam (e.g. decays) keeps its own folder name in place of <beam>_Beam<h>.
 #   tracks.parquet: one row per track (stopped, final state, planes reached)
 #   states.parquet: one row per (track, plane reached), see src/montecarlo/propagation.py
 #   metadata.yml:   date, git commit, input, seed, the layout it corresponds to (layout_name, the
@@ -28,6 +35,7 @@ from src.propagator.multiprocess_propagation import propagate_tracks_parallel, r
 from src.utils.config_loader import (CONFIG_DIR, get_key, load_config, make_detector_planes, make_geometry,
                                      make_propagator, particle_by_name)
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, load_dataset, save_dataset
+from src.utils.hashing import beam_hash, magnet_hash, propagator_hash
 
 
 def main():
@@ -42,7 +50,7 @@ def main():
     parser.add_argument("--workers", type=int, default=None,
                         help="number of processes (default: propagator.n_workers; 1 = serial)")
     parser.add_argument("--name", default=None,
-                        help="dataset folder name (default: <input name>_prop_seed<seed>[_n<n_max>])")
+                        help="dataset folder name (default: <beam>_Beam<h>_Lay<h>_Magn<h>_Prop<h>_seed<seed>[_n<n_max>])")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace the dataset folder if it already exists")
     parser.add_argument("--plot", action=argparse.BooleanOptionalAction, default=None,
@@ -90,9 +98,18 @@ def main():
     states, tracks = propagate_tracks_parallel(df_tracks, propagator, planes, kick_seed,
                                                n_workers=n_workers)
 
-    # 4. Save
-    input_name = Path(input_path).name
-    name = args.name or (f"{input_name}_prop_seed{seed}" + (f"_n{n_max}" if n_max is not None else ""))
+    # 4. Save, in a folder named after the hashes of everything it was made from
+    hashes = {
+        "beam_hash": (beam_hash(input_metadata["beam"], input_metadata["run"]["n_events"], input_metadata["run"]["seed"])
+                      if "beam" in input_metadata and "run" in input_metadata else None),
+        "layout_hash": layout_hash,
+        "magnet_hash": magnet_hash(cfg["geometry"]["magnet"], geometry.z_end_system),
+        "propagator_hash": propagator_hash(cfg["propagator"]),
+    }
+    source = (f"{input_metadata['run']['beam']}_Beam{hashes['beam_hash']}" if hashes["beam_hash"]
+              else Path(input_path).name)
+    name = args.name or (f"{source}_Lay{layout_hash}_Magn{hashes['magnet_hash']}_Prop{hashes['propagator_hash']}"
+                         f"_seed{seed}" + (f"_n{n_max}" if n_max is not None else ""))
     config_path = config_path.resolve()
     if config_path.is_relative_to(REPO_ROOT):
         config_path = config_path.relative_to(REPO_ROOT)
@@ -100,6 +117,7 @@ def main():
         "config_source": str(config_path),
         "input": str(input_path),
         "input_created": input_metadata.get("created"),
+        **hashes,
         "seed": seed,
         "n_input_tracks": len(df_input),
         "n_max": n_max,                     # null: all the tracks; else chosen at random (seed)
@@ -107,7 +125,6 @@ def main():
         "n_stopped": int(tracks["stopped"].sum()),
         "particle": particle.name,
         "layout_name": layout,              # data/geometry/<layout_name> if generate_layout was run on it
-        "layout_hash": layout_hash,
         "planes": [{"name": n, "z": float(z)} for n, z in planes],
         "geometry": cfg["geometry"],
         "propagator": cfg["propagator"],

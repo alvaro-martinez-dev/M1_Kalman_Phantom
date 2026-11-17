@@ -1,15 +1,16 @@
 # scripts/generate_layout.py
 #
 # Builds the geometry (and the detector planes) from a yaml config and saves the layout table
-# in data/geometry/layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/ to check the generated positions:
+# in data/geometry/layout_Lay<hash>_<n>Det_<m>Layers_<p>PhDet_<k>MagDet/ to check the generated positions:
 #   layout.csv:   one row per z (boundaries + detector planes, region/material on each side)
 #   metadata.yml: date, git commit, the layout parameters with their hash and the geometry block used
 #   report.pdf:   schematic of the system and the table, if run.plot is true (see plotting/plot_layout.py)
-# with n = total number of distinct detector planes, m = number of phantom layers,
+# with hash = deterministic hash of the layout parameters (see layout_hash): two configs that
+#             differ in any position, thickness or number of planes never share a folder. The
+#             propagations made on this layout carry the same Lay<hash> in their name
+#      n = total number of distinct detector planes, m = number of phantom layers,
 #      p = detector planes at the internal interfaces of the phantom (m - 1 if inside_phantom, else 0),
-#      k = detector planes strictly inside the magnet (n_inside_magnet),
-#      hash = deterministic hash of the layout parameters (see layout_hash): two configs that
-#             differ in any position, thickness or number of planes never share a folder
+#      k = detector planes strictly inside the magnet (n_inside_magnet)
 #
 # Usage (from the repo root):
 #   python -m scripts.generate_layout                         # uses configs/config.yaml

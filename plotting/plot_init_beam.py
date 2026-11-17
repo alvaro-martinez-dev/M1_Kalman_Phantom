@@ -6,7 +6,7 @@
 #   3. Correlations between the generated parameters
 #
 # Usage (from the repo root), to redo the report of an existing dataset:
-#   python -m plotting.plot_init_beam init_beam/proton_n100000_seed42
+#   python -m plotting.plot_init_beam init_beam/proton_n100000_seed42_Beamca5fcd
 
 import argparse
 from pathlib import Path

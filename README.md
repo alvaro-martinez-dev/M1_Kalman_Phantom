@@ -79,7 +79,8 @@ python -m scripts.generate_init_beam --beam proton
 ```
 
 Generates `run.n_events` tracks of the beam block `proton` of `configs/config.yaml`
-(with seed `run.seed`) and saves them in `data/init_beam/proton_n<n_events>_seed<seed>/`:
+(with seed `run.seed`) and saves them in `data/init_beam/proton_n<n_events>_seed<seed>_Beam<hash>/`
+(see [Dataset names](#dataset-names)):
 
 - `tracks.parquet`: one row per track (see `src/montecarlo/tracks.py`)
 - `metadata.yml`: date, git commit and the parameters of the yaml used
@@ -91,7 +92,7 @@ Options: `--config <name or path>`, `--beam <block>` (default: `run.beam`),
 To redo only the plot report of an existing dataset:
 
 ```bash
-python -m plotting.plot_init_beam init_beam/proton_n100000_seed42
+python -m plotting.plot_init_beam init_beam/proton_n100000_seed42_Beamca5fcd
 ```
 
 ### (3) Generate system layout and magnetic field (optional, visual check)
@@ -109,13 +110,14 @@ itself, so this step can be skipped.
 
 Builds the geometry (phantom, phantom interfaces, magnet) and the detector planes from the
 `geometry` block of `configs/config.yaml` and saves the layout along z in
-`data/geometry/layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/`, with
-`n` the total number of detector planes, `m` the number of phantom layers, `p` the detector
-planes at the internal interfaces of the phantom (`m - 1` if `inside_phantom: true`, else 0),
-`k` the detector planes strictly inside the magnet (`n_inside_magnet`) and `hash` a short
+`data/geometry/layout_Lay<hash>_<n>Det_<m>Layers_<p>PhDet_<k>MagDet/`, with `hash` a short
 deterministic hash of the layout parameters (positions, thicknesses, materials, number of
 planes): the same config always gives the same folder, and two configs that differ in anything
-that changes the layout never share one. For example `layout_10Det_2Lay1PhDet_2MagDet_a3f9c1`:
+that changes the layout never share one. The propagations made on this layout carry the same
+`Lay<hash>` in their name. `n` is the total number of detector planes, `m` the number of phantom
+layers, `p` the detector planes at the internal interfaces of the phantom (`m - 1` if
+`inside_phantom: true`, else 0) and `k` the detector planes strictly inside the magnet
+(`n_inside_magnet`). For example `layout_Lay255033_10Det_2Layers_1PhDet_1MagDet`:
 
 - `layout.csv`: one row per z position, with the physical boundary and/or detector plane
   placed there, and the region and material just before and just after it
@@ -137,20 +139,24 @@ Plotting the report:
 python -m scripts.generate_layout                      # layout + report.pdf if run.plot is true
 python -m scripts.generate_layout --plot               # layout + report.pdf, whatever run.plot says
 python -m scripts.generate_layout --no-plot            # layout only
-python -m plotting.plot_layout geometry/layout_11Det_2Lay0PhDet_2MagDet_4b77bc   # redo only the report
+python -m plotting.plot_layout geometry/layout_Lay255033_10Det_2Layers_1PhDet_1MagDet   # redo only the report
 ```
 
 #### Magnetic field
 
 Builds the field of the `geometry.magnet` block exactly as the propagator uses it
 (`src.field.build_field`: `model`, `B0` and `interpolation`) and saves it in
-`data/field/field_<model>[_interp]_<hash>/`, with `hash` a short deterministic hash of the
-`magnet` block and of the extent of the system (which sets the interpolation grid):
+`data/field/field_Magn<hash>_<model>[_interp]/`, with `hash` a short deterministic hash of what
+changes the field in the `magnet` block (the keys of the unused model and a disabled
+interpolation grid are left out) and, if interpolated, of the extent of the system (which sets the
+interpolation grid). The propagations made with this field carry the same `Magn<hash>` in their
+name:
 
 - `field.pdf`: By(z) along the whole system at x = 0 and x = `x_offset`, with the magnet edges
   and the uniformity window, and By(x) across the gap at the magnet centre, with the plates.
   If `interpolation.enabled`, the source field (no interpolation) is drawn dashed on top
-- `metadata.yml`: date, git commit, the `magnet` block used, the plot ranges and the results:
+- `metadata.yml`: date, git commit, the `magnet` block used, `magnet_hash` and the parameters it
+  is computed from, the plot ranges and the results:
   By at the centre, max deviation in the uniformity window, integral of By dz at x = 0,
   effective length and (if interpolated) max interpolation error
 
@@ -165,7 +171,7 @@ python -m scripts.generate_propagation
 ```
 
 Takes the initial tracks of `propagator.input` (a dataset of step (2), e.g.
-`init_beam/proton_n100000_seed42`), keeps `propagator.n_max` of them chosen at random (all of
+`init_beam/proton_n100000_seed42_Beamca5fcd`), keeps `propagator.n_max` of them chosen at random (all of
 them if `null`; it must not exceed the tracks of the input), propagates each one through the
 system of the `geometry`
 block and stores its **true** state at every detector plane. The detector resolution is not
@@ -186,7 +192,9 @@ What happens to each track, from its `z0` to the end of the system:
 `propagator.seed` gives two independent random streams: one for the choice of the `n_max`
 tracks and one for the kicks. The chosen tracks keep their order and their `event_id` of the input.
 
-The output goes to `data/propagation/<input name>_prop_seed<seed>[_n<n-max>]/`:
+The output goes to `data/propagation/<beam>_Beam<h>_Lay<h>_Magn<h>_Prop<h>_seed<seed>[_n<n-max>]/`
+(see [Dataset names](#dataset-names)), e.g.
+`proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000`:
 
 - `tracks.parquet`: one row per track: `input_row` (its row in the input dataset), `event_id`,
   `stopped`, final state (`z_final`, `x_final`, `tx_final`, `q_over_p_final`, `T_final`) and
@@ -194,9 +202,10 @@ The output goes to `data/propagation/<input name>_prop_seed<seed>[_n<n-max>]/`:
 - `states.parquet`: one row per (track, plane reached): `track_id`, `input_row`, `event_id`, `plane_index`,
   `plane`, `z`, `x`, `tx`, `q_over_p`, `T`. A track that stops in the phantom has no rows after
   it stops, so the absorption shows as fewer tracks in the later planes
-- `metadata.yml`: date, git commit, input dataset, seed, `n_max`, the detector planes (name and
-  z), `layout_name` / `layout_hash` (the folder of step (3) with this geometry, the one
-  `generate_layout` writes for it) and the `geometry` and `propagator` blocks used
+- `metadata.yml`: date, git commit, input dataset, the hashes of the name (`beam_hash`,
+  `layout_hash`, `magnet_hash`, `propagator_hash`), seed, `n_max`, the detector planes (name and
+  z), `layout_name` (the folder of step (3) with this geometry, the one `generate_layout` writes
+  for it) and the `geometry` and `propagator` blocks used
 - `tracks_on_layout.pdf`: 5 random tracks drawn on the schematic of the system, as their full
   trajectory plus their true state at each plane, if `run.plot` is `true`. Along each track,
   ⊙ / ⊗ mark the field it crosses: B_y > 0 (out of the page) / B_y < 0 (into the page), with
@@ -255,8 +264,8 @@ code or the input changed after the propagation. To redo only the plot of an exi
 with other options:
 
 ```bash
-python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n1000
-python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n1000 --n-tracks 7 --seed 3
+python -m plotting.plot_tracks propagation/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000
+python -m plotting.plot_tracks propagation/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000 --n-tracks 7 --seed 3
 ```
 
 Options: `--n-tracks <1-7>` (default 5), `--seed <n>` (choice of the tracks, default 0),
@@ -287,8 +296,8 @@ The output goes to `data/hits/<propagation name>_hits_sigma<sigma_x>mm_seed<seed
   (`track_id`, `plane_index`) to validate (residuals, pulls)
 - `tracks.parquet`: one row per track: `track_id`, `input_row`, `event_id`, `particle`, `n_hits`
 - `metadata.yml`: date, git commit, the propagation dataset used (`input`, its creation date and
-  git commit) and, under `propagation`, its initial beam dataset, seed and layout, so the hits
-  can be traced back to the beam; plus the `seed`, `sigma_x` and the detector planes
+  git commit) and, under `propagation`, its initial beam dataset, seed, layout and hashes, so the
+  hits can be traced back to the beam; plus the `seed`, `sigma_x` and the detector planes
 - `report.pdf`, if `run.plot` is `true`: the hits against the MC truth of their propagation
   (`plotting/plot_hits.py`):
   1. residuals x_meas − x_true and pulls (x_meas − x_true)/σ_x of all the hits, against
@@ -309,7 +318,7 @@ Options: `--config <name or path>`, `--input <propagation dataset>` (default: `h
 To redo only the report of an existing dataset:
 
 ```bash
-python -m plotting.plot_hits hits/proton_n100000_seed42_prop_seed45_n10000_hits_sigma0.1mm_seed46
+python -m plotting.plot_hits hits/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000_hits_sigma0.1mm_seed46
 ```
 
 Options: `--n-tracks <1-7>` (tracks of page 3, default 5), `--seed <n>` (their choice, default 0),
@@ -358,7 +367,8 @@ For each track, from the prior at z = 0 and hit by hit in beam order:
 χ² of a track = Σ χ²_k of the filter. Since the prior is the true distribution of the beam, the
 predicted residuals are independent N(0, 1) and **ndf = n_hits** (not n_hits − 3).
 
-The output goes to `data/fit/<hits name>_fit[_n<n_max>]/`:
+The output goes to `data/fit/<hits name>_Kal<hash>[_n<n_max>]/`, with `Kal<hash>` the hash of
+the options of the fit (`smoother`, `central_differences`, finite-difference steps):
 
 - `tracks.parquet`: one row per track: `track_id`, `input_row`, `event_id`, `n_hits`, `status`
   (`ok`, or `stopped` if the predicted track stops in the phantom before one of its hits; such a
@@ -370,9 +380,9 @@ The output goes to `data/fit/<hits name>_fit[_n<n_max>]/`:
   `res_smooth_err` (variance V − C_xx: the hit is part of the estimate). The truth is joined
   by (`track_id`, `plane_index`) with `states.parquet` of the propagation
 - `metadata.yml`: date, git commit, the hits dataset used and what it was made from (propagation
-  and its creation date and commit, initial beam and its `beam` block), the prior, the options of
-  the fit (`smoother`, `central_differences`, finite-difference steps) and a summary (tracks fitted
-  and stopped, mean χ²/ndf, time)
+  with its creation date, commit and hashes, initial beam and its `beam` block), the prior, the
+  options of the fit (`kalman_hash`, `smoother`, `central_differences`, finite-difference steps)
+  and a summary (tracks fitted and stopped, mean χ²/ndf, time)
 - `report.pdf`, if `run.plot` is `true`: the fit against the MC truth (`plotting/plot_fit.py`):
   1. pulls (fit − true)/σ_fit of x, tx and q/p at all the planes against N(0, 1), one page for
      the filter and one for the smoother. The pulls of a track are correlated (q/p barely changes
@@ -397,11 +407,50 @@ processes, most of it the start of the processes.
 To redo only the report of an existing fit:
 
 ```bash
-python -m plotting.plot_fit fit/proton_n100000_seed42_prop_seed45_n1000_hits_sigma0.1mm_seed46_fit
+python -m plotting.plot_fit fit/<hits name>_Kal<hash>
 ```
 
 Options: `--n-tracks <n>` (tracks of the last page, default 3), `--seed <n>` (their choice,
 default 0), `--out <pdf>`.
+
+### Dataset names
+
+Every folder of `data/` is named after the parameters it was generated from, through short
+deterministic hashes (`src/utils/hashing.py`: the first 6 hex characters of the sha256 of the
+parameters as sorted json; integers and floats of the yaml are normalised, so `100` and `100.0`
+give the same hash). Same parameters give the same name on any computer; anything that changes
+the result gives another name, so two datasets of different systems never overwrite each other.
+
+| Hash | Parameters | Folder where it is created |
+|---|---|---|
+| `Beam<h>` | beam block (particle, x0, theta0, p0 and their sigmas) + `n_events` + `seed` | `init_beam/<beam>_n<n>_seed<s>_Beam<h>` |
+| `Lay<h>` | geometry and detector planes (positions, thicknesses, materials, number of planes) | `geometry/layout_Lay<h>_...` |
+| `Magn<h>` | what changes the field in the `magnet` block, + the extent of the system if interpolated (`Magnoff` without magnet) | `field/field_Magn<h>_...` |
+| `Prop<h>` | physics options of the propagator: `step`, `adaptive`, `tolerances` (if adaptive), scattering `max_slice` | (only in the propagation) |
+| `Kal<h>` | options of the fit: `smoother`, `central_differences`, finite-difference steps | (only in the fit) |
+
+Each dataset cites what it was made from by these hashes, and its children inherit its name:
+
+```
+init_beam/   proton_n100000_seed42_Beamca5fcd
+geometry/    layout_Lay255033_10Det_2Layers_1PhDet_1MagDet
+field/       field_Magn5a08f2_biot_savart_interp
+propagation/ proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000
+hits/        proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000_hits_sigma0.1mm_seed46
+fit/         proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000_hits_sigma0.1mm_seed46_Kalceea7b
+```
+
+So `Lay255033` in a propagation is the folder `data/geometry/layout_Lay255033_...` and
+`Magn5a08f2` is `data/field/field_Magn5a08f2_...` (if `generate_layout` / `check_field` were run
+for that config; they are not needed to propagate). Seeds, sizes and `sigma_x` stay in clear in
+the name. What does not change the result (`n_workers`, `plot`) is in no hash. The hashes are also
+written in each `metadata.yml`, with the full blocks they come from.
+
+The **code** is not in the name (it would change with every commit): it is the `git_commit` of
+each `metadata.yml`. If the field or the propagator code changes, regenerate the datasets.
+
+Datasets made before this naming scheme keep their old names and still load (everything is read
+by path).
 
 ### Tests
 
@@ -437,7 +486,7 @@ M1_Kalman_Phantom/
 │   │   ├── filter.py        forward Kalman filter: update with each hit, chi2
 │   │   ├── smoother.py      Rauch-Tung-Striebel smoother
 │   │   └── fit.py           model from the dataset metadata, beam prior, fit of many tracks (parallel)
-│   └── utils/               yaml loading, dataset save/load, input validation
+│   └── utils/               yaml loading, dataset save/load, hashes of the dataset names, input validation
 ├── scripts/                 entry points, run as python -m scripts.<name>
 │   ├── generate_init_beam.py
 │   ├── generate_layout.py
@@ -449,13 +498,13 @@ M1_Kalman_Phantom/
 ├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks, plot_hits,
 │                            plot_fit)
 ├── data/                    generated outputs, one folder per run
-│   ├── init_beam/           <beam>_n<n_events>_seed<seed>/: tracks.parquet, metadata.yml, report.pdf
-│   ├── geometry/            layout_<n>Det_<m>Lay<p>PhDet_<k>MagDet_<hash>/: layout.csv, metadata.yml, report.pdf
-│   ├── field/               field_<model>[_interp]_<hash>/: field.pdf, metadata.yml
-│   ├── propagation/         <input>_prop_seed<seed>[_n<n>]/: tracks.parquet, states.parquet, metadata.yml,
-│                            tracks_on_layout.pdf
+│   ├── init_beam/           <beam>_n<n_events>_seed<seed>_Beam<h>/: tracks.parquet, metadata.yml, report.pdf
+│   ├── geometry/            layout_Lay<h>_<n>Det_<m>Layers_<p>PhDet_<k>MagDet/: layout.csv, metadata.yml, report.pdf
+│   ├── field/               field_Magn<h>_<model>[_interp]/: field.pdf, metadata.yml
+│   ├── propagation/         <beam>_Beam<h>_Lay<h>_Magn<h>_Prop<h>_seed<seed>[_n<n>]/: tracks.parquet,
+│                            states.parquet, metadata.yml, tracks_on_layout.pdf
 │   ├── hits/                <propagation>_hits_sigma<sigma_x>mm_seed<seed>/: hits.parquet, tracks.parquet, metadata.yml, report.pdf
-│   └── fit/                 <hits>_fit[_n<n>]/: fit.parquet, tracks.parquet, metadata.yml, report.pdf
+│   └── fit/                 <hits>_Kal<h>[_n<n>]/: fit.parquet, tracks.parquet, metadata.yml, report.pdf
 ├── notebooks/               exploration and validation
 ├── tests/                   pytest tests (python -m pytest)
 ├── pdf_info/                project proposal, concept figure and guides

@@ -9,7 +9,7 @@
 #   3. A few tracks: their hits (with ±sigma_x) and their true states at the planes, and their residuals
 #
 # Usage (from the repo root), to redo the report of an existing dataset:
-#   python -m plotting.plot_hits hits/proton_n100000_seed42_prop_seed45_n10000_hits_sigma0.1mm_seed46
+#   python -m plotting.plot_hits hits/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000_hits_sigma0.1mm_seed46
 
 import argparse
 from pathlib import Path

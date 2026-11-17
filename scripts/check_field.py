@@ -2,7 +2,7 @@
 #
 # Visual check of the magnetic field built from a yaml config (src.field.build_field, i.e. exactly
 # the field the propagator uses: model, B0 and interpolation of geometry.magnet). Saves in
-# data/field/field_<model>[_interp]_<hash>/:
+# data/field/field_Magn<hash>_<model>[_interp]/:
 #   field.pdf:    1. By(z) along the whole system, at x = 0 and x = x_offset, with the magnet edges
 #                    and the uniformity window around the magnet centre
 #                 2. By(x) across the gap at the magnet centre, with the plates at +-x_half_gap
@@ -10,9 +10,10 @@
 #                 dashed on top, to see the interpolation error by eye
 #   metadata.yml: date, git commit, the magnet block used, the plot ranges and the results
 #                 (By at the centre, uniformity, field integral)
-# with hash = deterministic hash of the magnet block and the extent of the system (z_end_system,
-#             which sets the interpolation grid): two configs with a different field never
-#             share a folder
+# with hash = magnet_hash of src/utils/hashing.py: deterministic hash of what changes the field in
+#             the magnet block (and the extent of the system, z_end_system, which sets the
+#             interpolation grid, if interpolated): two configs with a different field never share
+#             a folder. The propagations made with this field carry the same Magn<hash> in their name
 #
 # Usage (from the repo root):
 #   python -m scripts.check_field                          # uses configs/config.yaml
@@ -22,8 +23,6 @@
 
 import argparse
 import copy
-import hashlib
-import json
 from datetime import datetime
 from pathlib import Path
 
@@ -35,10 +34,10 @@ from plotting.plot_layout import COLOR_MAGNET, COLOR_MUTED, COLOR_TEXT, PAGE_SIZ
 from src.field import build_field
 from src.utils.config_loader import CONFIG_DIR, get_key, is_enabled, load_config, make_geometry
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, git_state
+from src.utils.hashing import magnet_hash, magnet_parameters
 
 
 REPORT_NAME = "field.pdf"
-HASH_LENGTH = 6           # hex characters of the field hash in the folder name
 HEIGHT_RATIOS = [1, 2, 1]       # margin / plots / margin: the plots take half the page height
 WIDTH_RATIOS = [1, 8, 8, 1]     # margin / By(z) / By(x) / margin
 
@@ -52,13 +51,6 @@ COLOR_XOFF = "#1baf7a"
 COLOR_SOURCE = "#0b0b0b"
 COLOR_WINDOW = "#1baf7a"
 WINDOW_ALPHA = 0.08
-
-
-# Deterministic hash of everything that changes the field: same parameters -> same hash
-def field_hash(magnet_cfg, z_end_system):
-
-    text = json.dumps({"magnet": magnet_cfg, "z_end_system": z_end_system}, sort_keys=True)
-    return hashlib.sha256(text.encode()).hexdigest()[:HASH_LENGTH]
 
 
 # Draws the two profiles on an A4 landscape page and saves it as a pdf
@@ -132,7 +124,7 @@ def main():
                         help="half width [mm] of the uniformity window around the magnet centre "
                              f"(default: {WINDOW:g})")
     parser.add_argument("--name", default=None,
-                        help="field folder name (default: field_<model>[_interp]_<hash>)")
+                        help="field folder name (default: field_Magn<hash>_<model>[_interp])")
     parser.add_argument("--overwrite", action="store_true",
                         help="replace the field folder if it already exists")
     args = parser.parse_args()
@@ -188,8 +180,8 @@ def main():
             profiles["By_x"] - source_profiles["By_x"])))
 
     # 4. Output folder
-    hash_ = field_hash(magnet, geometry.z_end_system)
-    name = args.name or f"field_{magnet['model']}{'_interp' if interpolated else ''}_{hash_}"
+    hash_ = magnet_hash(magnet, geometry.z_end_system)
+    name = args.name or f"field_Magn{hash_}_{magnet['model']}{'_interp' if interpolated else ''}"
     out_dir = DATA_DIR / "field" / name
     if out_dir.exists() and any(out_dir.iterdir()):
         if not args.overwrite:
@@ -212,7 +204,8 @@ def main():
         "git_uncommitted_changes": dirty,
         "config_source": str(config_path),
         "field_class": type(field).__name__,
-        "field_hash": hash_,
+        "magnet_hash": hash_,
+        "magnet_parameters": magnet_parameters(magnet, geometry.z_end_system),   # what the hash is computed from
         "z_end_system": geometry.z_end_system,
         "plot_ranges": {
             "z_mm": [float(z[0]), float(z[-1]), N_Z],

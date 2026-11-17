@@ -1,0 +1,18 @@
+created: '2026-11-17T17:51:58'
+git_commit: 87c2123153d07939b2450e096ccc355d385664cc
+git_uncommitted_changes: true
+n_rows: 100000
+config_source: C:\Users\alvar\AppData\Local\Temp\claude\f6ef1afabc46347a\39b74359-fb1b-4925-9c31-febac8d2420e\scratchpad\regen_configs\beam_proton.yaml
+beam_hash: ca5fcd
+run:
+  beam: proton
+  n_events: 100000
+  seed: 42
+beam:
+  particle: PROTON
+  x0: 0.0
+  sigma_x0: 1.0
+  theta0: 0.0
+  sigma_theta0: 0.001
+  p0: 700.0
+  sigma_p0: 3.0

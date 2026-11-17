@@ -32,7 +32,7 @@ def git_state():
 
 
 # df: track DataFrame to save
-# out_dir: folder of the dataset (e.g. data/init_beam/proton_n100000_seed42)
+# out_dir: folder of the dataset (e.g. data/init_beam/proton_n100000_seed42_Beamca5fcd)
 # params: dict of the parameters actually used (run settings, beam block...),
 #         written to metadata.yml after the date and git info
 # overwrite: if False, raises an error if out_dir already exists
@@ -83,7 +83,7 @@ def dataset_path(path):
     return path
 
 
-# path: folder of a dataset (absolute, or relative to data/, e.g. "init_beam/proton_n100000_seed42")
+# path: folder of a dataset (absolute, or relative to data/, e.g. "init_beam/proton_n100000_seed42_Beamca5fcd")
 # Returns: (track DataFrame, metadata dict)
 def load_dataset(path):
 
