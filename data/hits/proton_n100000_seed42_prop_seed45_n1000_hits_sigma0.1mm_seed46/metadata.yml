@@ -1,18 +1,18 @@
-created: '2026-11-16T18:35:34'
-git_commit: 4cc5415ec492a1acd0f9f53bb40a9ae16206bb3a
+created: '2026-11-17T16:38:20'
+git_commit: 287a7d9a7aa0ae5bbf70a327857eca04d75fe26d
 git_uncommitted_changes: true
 n_rows: 1000
 config_source: configs\config.yaml
 input: propagation/proton_n100000_seed42_prop_seed45_n1000
-input_created: '2026-11-11T20:24:54'
-input_git_commit: 78f6047ab115b875ce6782b5a2ed594e040ffcc4
+input_created: '2026-11-17T16:30:51'
+input_git_commit: 287a7d9a7aa0ae5bbf70a327857eca04d75fe26d
 propagation:
   input: init_beam/proton_n100000_seed42
   seed: 45
   n_tracks: 1000
   n_stopped: 0
-  layout_name: layout_10Det_2Lay1PhDet_1MagDet_5fa9fe
-  layout_hash: 5fa9fe
+  layout_name: layout_10Det_2Lay1PhDet_1MagDet_255033
+  layout_hash: '255033'
 seed: 46
 sigma_x: 0.1
 particle: p
@@ -24,13 +24,13 @@ planes:
 - name: D_phantom_start
   z: 50.0
 - name: D_layer_1_to_2
-  z: 150.0
+  z: 100.0
 - name: D_phantom_end
-  z: 200.0
+  z: 120.0
 - name: D_gap_1
-  z: 266.6666666666667
+  z: 213.33333333333331
 - name: D_gap_2
-  z: 333.33333333333337
+  z: 306.66666666666663
 - name: D_magnet_start
   z: 400.0
 - name: D_magnet_1
