@@ -23,14 +23,6 @@ import matplotlib.pyplot as plt
 from src.utils.config_loader import load_config
 from src.field import BiotSavartField
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-import numpy as np
-import matplotlib.pyplot as plt
-from src.utils.config_loader import load_config
-from src.field import BiotSavartField
-
 # Output
 OUT_DIR = ROOT / "data" / "field_plots"
 OUT_DIR.mkdir(parents=True, exist_ok=True)
