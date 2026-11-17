@@ -15,7 +15,9 @@
 #
 # The dataset only stores the states at the planes, so the chosen tracks are propagated again
 # with many output points. Each track has its own random stream (src/montecarlo/propagation.py),
-# so this is exactly the same track as in the dataset (checked at the planes), not a new one.
+# so this is the same track as in the dataset, not a new one. The check that it is reproduced is
+# done with the exact call of the Monte Carlo (reproduction_error): the extra output points of the
+# drawing move the nodes of the fixed-step RK, so the drawn line may differ by ~1e-3 mm.
 #
 # Usage (from the repo root), to redo the plot of an existing dataset:
 #   python -m plotting.plot_tracks propagation/proton_n100000_seed42_prop_seed45_n1000
@@ -51,7 +53,8 @@ COLOR_SURFACE = "#fcfcfb"
 LINE_WIDTH = 2.0
 HALO_WIDTH = 4.0            # surface ring around each line, separates it from the fills and other lines
 MARKER_SIZE = 5.0
-TOL_PLANES = 1e-6           # [mm] allowed difference between the redrawn track and the dataset at the planes
+TOL_PLANES = 1e-6           # [mm] allowed difference at the planes between the track propagated again
+                            # (same call as the Monte Carlo, see reproduction_error) and the dataset
 
 # Field symbols along the tracks
 FIELD_DZ = 30.0             # [mm] spacing of the symbols along z
@@ -85,6 +88,30 @@ def dense_track(propagator, input_track, input_row, kick_seed, plane_z, dz):
 
     states = [start] + [s for s in result.at_z_out if s is not None] + [result.final]
     return np.array([s.z for s in states]), np.array([s.x for s in states])
+
+
+# Is the track of the dataset reproduced? Propagates it again with exactly the call of the Monte
+# Carlo (src/montecarlo/propagation.py: only the planes as output points, same random stream) and
+# compares x at the planes. The dense redraw cannot be used for this: its extra output points are
+# extra cuts, which move the nodes of the fixed-step RK and change x by its truncation error
+# (~1e-3 mm), so it is only for drawing
+# at_planes: rows of states.parquet of this track
+# Returns: max |x_again - x_dataset| [mm] at the planes
+def reproduction_error(propagator, input_track, input_row, kick_seed, plane_z, at_planes):
+
+    start = start_state(input_track)
+    z_end = propagator.geometry.z_end_system
+    ahead = np.flatnonzero((plane_z > start.z + TOL) & (plane_z <= z_end + TOL))
+    rng = track_rng(kick_seed, input_row) if propagator.max_slice is not None else None
+    result = propagator.propagate(start, z_end, z_out=plane_z[ahead].tolist(), rng=rng)
+
+    x_again = {int(k): s.x for k, s in zip(ahead, result.at_z_out) if s is not None}
+    error = 0.0
+    for k, x in zip(at_planes["plane_index"], at_planes["x"]):
+        if int(k) not in x_again:      # the dataset has a state where the track now stops
+            return np.inf
+        error = max(error, abs(x_again[int(k)] - x))
+    return error
 
 
 # Draws one ⊙ (sign > 0) or ⊗ (sign < 0) of marker size `size` at (z, x)
@@ -169,11 +196,13 @@ def plot_tracks(prop_path, n_tracks=5, seed=0, dz=2.0, out_path=None):
         input_row = int(track.input_row)
         z, x = dense_track(propagator, input_tracks.iloc[input_row], input_row, prop_metadata["seed"], plane_z, dz)
 
-        # the redrawn track must be the one of the dataset
+        # the drawn track must be the one of the dataset (checked with the exact Monte Carlo call)
         at_planes = states[states.input_row == input_row]
-        if len(at_planes) and np.max(np.abs(np.interp(at_planes["z"], z, x) - at_planes["x"].to_numpy())) > TOL_PLANES:
-            warnings.warn(f"Track {input_row} redrawn differs from the dataset at the planes "
-                          "(was the code or the input changed after the propagation?)")
+        error = reproduction_error(propagator, input_tracks.iloc[input_row], input_row, prop_metadata["seed"],
+                                   plane_z, at_planes)
+        if error > TOL_PLANES:
+            warnings.warn(f"Track {input_row} is not reproduced at the planes (max |dx| = {error:.2e} mm): "
+                          "was the code or the input changed after the propagation?")
 
         ax.plot(z, x, color=color, linewidth=LINE_WIDTH, path_effects=halo, zorder=4)
         ax.plot(at_planes["z"], at_planes["x"], linestyle="none", marker="o", markersize=MARKER_SIZE,

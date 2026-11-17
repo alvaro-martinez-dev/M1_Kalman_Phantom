@@ -13,7 +13,7 @@
 
 run:
   seed: 42
-  n_events: 1000
+  n_events: 100000
   beam: proton                  # which block of beams to simulate
   decay: null #jpsi_mumu            # which block of decays to simulate
   plot: true                  # write report.pdf in the dataset folder
@@ -82,7 +82,6 @@ geometry:
     layers:                   # in beam order; material = Material in src/constants.py
       - {material: WATER, thickness: 50.0}
       - {material: BONE, thickness: 20.0}
-      - {material: WATER, thickness: 50.0}
   magnet:
     enabled: true             # false: no magnet and no field (straight lines in vacuum)
     z_start: 400.0           # [mm] start of the magnet
@@ -122,7 +121,7 @@ propagator:
   # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
   input: init_beam/proton_n100000_seed42   # dataset of initial beam, relative to data/ (charged particles)
   seed: 45    # seed for scattering kicks; must differ from the seed of the input
-  n_max: 10000 # number of tracks to propagate, chosen at random from the input (null: all of them).
+  n_max: 1000 # number of tracks to propagate, chosen at random from the input (null: all of them).
               # Must be <= the number of tracks of the input. Write it as an integer (1000, not 1e3)
   n_workers: null   # processes for the propagation (src/propagator/multiprocess_propagation.py):
                     # null = half the logical CPUs of the computer (~ physical cores, adapts to each PC),
@@ -150,7 +149,7 @@ propagator:
 
 hits:
   # Measurement on each detector plane (scripts/generate_hits.py): x_meas = x_true + N(0, sigma_x)
-  input: propagation/proton_n100000_seed42_prop_seed45_n1000   # propagation dataset, relative to data/
+  input: propagation/proton_n100000_seed42_prop_seed45_n10000   # propagation dataset, relative to data/
   seed: 46                    # seed for the measurement errors; must differ from the seed of the input
   sigma_x: 0.1                # [mm] resolution of every plane
 
