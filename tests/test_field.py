@@ -152,10 +152,11 @@ class TestBiotSavartField:
                                    f.By(0.0, Z_CENTRE - dz),
                                    rtol=1e-10, atol=1e-12)
 
-    def test_only_By_nonzero_and_shape(self):
-        b = self.make().B(0.0, 0.0, Z_CENTRE)
+    def test_Bx_Bz_vanish_at_y0(self):
+        b = self.make().B(10.0, 0.0, 500.0)
         assert b.shape == (3,)
-        assert b[0] == 0.0 and b[2] == 0.0
+        assert abs(b[0]) < 1e-10 * abs(b[1])
+        assert abs(b[2]) < 1e-10 * abs(b[1])
 
     def test_vectorised_shape(self):
         x = np.linspace(-20, 20, 5)[:, None]
@@ -282,3 +283,85 @@ class TestBuildFieldFromConfig:
         m = cfg["geometry"]["magnet"]
         z_centre = m["z_start"] + m["z_length"] / 2.0
         assert np.isfinite(field.By(0.0, z_centre))
+# ------------------------------------------- Biot-Savart: full 3D vector field
+def _jacobian(f, p, h=0.05):
+    """Central finite-difference Jacobian J[i, j] = dB_i / dx_j at p = (x, y, z) [mm]."""
+    p = np.asarray(p, dtype=float)
+    J = np.zeros((3, 3))
+    for j in range(3):
+        dp = np.zeros(3)
+        dp[j] = h
+        J[:, j] = (f.B(*(p + dp)) - f.B(*(p - dp))) / (2.0 * h)
+    return J
+
+
+def _div_curl_relative(f, p, h=0.05):
+    """(|div B|, |curl B|) normalised by the sum of |dB_i/dx_j|."""
+    J = _jacobian(f, p, h)
+    scale = np.sum(np.abs(J))
+    div = np.trace(J)
+    curl = np.array([J[2, 1] - J[1, 2], J[0, 2] - J[2, 0], J[1, 0] - J[0, 1]])
+    return abs(div) / scale, np.linalg.norm(curl) / scale
+
+
+# Points away from every wire (nearest wire at least ~20 mm), inside and outside the gap
+POINTS_OFF_WIRE = [
+    (20.0, 7.3, 550.0),     # inside the magnet
+    (-12.0, 31.7, 480.0),   # inside, off the median plane
+    (30.0, 3.1, 380.0),     # just before the entrance
+    (0.0, 130.0, 550.0),    # above the plates (|y| > y_height/2)
+    (80.0, 20.0, 300.0),    # outside the gap
+]
+
+
+class TestBiotSavartMaxwell:
+    """Magnetostatics off the conductors: div B = 0 and curl B = 0."""
+
+    @staticmethod
+    def make():
+        return BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 21)
+
+    def test_symmetries_in_y(self):
+        f = self.make()
+        b_plus = f.B(20.0, 17.0, 480.0)
+        b_minus = f.B(20.0, -17.0, 480.0)
+        assert b_minus[1] == pytest.approx(b_plus[1], rel=1e-10)    # By even in y
+        assert b_minus[0] == pytest.approx(-b_plus[0], rel=1e-10)   # Bx odd in y
+        assert b_minus[2] == pytest.approx(-b_plus[2], rel=1e-10)   # Bz odd in y
+
+    def test_B_matches_By_method(self):
+        f = self.make()
+        assert f.B(10.0, 0.0, 500.0)[1] == pytest.approx(f.By(10.0, 500.0), rel=1e-12)
+
+    @pytest.mark.parametrize("p", POINTS_OFF_WIRE)
+    def test_divergence_free(self, p):
+        div, _ = _div_curl_relative(self.make(), p)
+        assert div < 1e-4
+
+    @pytest.mark.parametrize("p", POINTS_OFF_WIRE)
+    def test_curl_free_off_conductors(self, p):
+        _, curl = _div_curl_relative(self.make(), p)
+        assert curl < 1e-4
+
+    def test_curl_nonzero_without_return_paths(self):
+        """Negative control: removing the return paths at z = z_end opens the loops,
+        and the curl off the conductors must no longer vanish."""
+        f = self.make()
+        # segments per loop: 0 = plate +x, 1 = return at z_end, 2 = plate -x, 3 = return at z_start
+        f._loops = [s for i, s in enumerate(f._loops) if i % 4 != 1]
+        _, curl = _div_curl_relative(f, (0.0, 7.3, 690.0))
+        assert curl > 1e-2
+
+    def test_infinite_plates_limit(self):
+        """Very large plates: |By| -> mu0 K between them (mu0 = 1 in the raw units).
+
+        Each filament carries unit current and the filaments are spaced by `pitch`
+        in y, so the surface current density is K = 1 / pitch.
+        """
+        n, y_height = 801, 4000.0
+        pitch = y_height / (n - 1)
+        f = BiotSavartField(1.0, z_start=-2000.0, z_length=4000.0, x_half_gap=50.0,
+                            y_height=y_height, n_filaments=n,
+                            z_int_halfrange=10.0, z_int_step=5.0)   # cheap normalisation
+        raw = abs(f._raw_By(0.0, 0.0))
+        assert raw == pytest.approx(1.0 / pitch, rel=0.05)
