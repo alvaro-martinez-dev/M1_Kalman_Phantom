@@ -81,7 +81,7 @@ class BiotSavartField(MagneticField):
         raw_integral = np.trapezoid(self._raw_By(np.zeros_like(z), z), z)
         if abs(raw_integral) < 1e-300:
             raise ValueError("Axis integral of the unit field is zero; check geometry.")
-        self._scale = self.B0 * self.z_length / raw_integral
+        self._scale = self.B0 * self.z_length / raw_integral  
 
     def _build_loops(self):
         """Return the (p1, p2) segment pairs of every filament loop."""
@@ -101,26 +101,32 @@ class BiotSavartField(MagneticField):
                 segments.append((corners[i], corners[(i + 1) % 4]))
         return segments
 
-    def _raw_By(self, x, z):
-        """By summed over all loops with unit current (mu0 = I = 1), at y = 0."""
-        x = np.asarray(x, dtype=float)
-        z = np.asarray(z, dtype=float)
-        x, z = np.broadcast_arrays(x, z)
-        r = np.stack([x, np.zeros_like(x), z], axis=-1)
+    def _raw_B(self, x, y, z):
+        """Full field vector summed over all loops with unit current (mu0 = I = 1).
+
+        Args:
+            x, y, z: positions [mm], scalars or broadcastable arrays.
+
+        Returns:
+            Array of shape (..., 3), in units of 1/length.
+        """
+        x, y, z = np.broadcast_arrays(*(np.asarray(a, dtype=float) for a in (x, y, z)))
+        r = np.stack([x, y, z], axis=-1)
 
         total = np.zeros(r.shape)
         for p1, p2 in self._loops:
             total += _segment_field(r, p1, p2)
-        return total[..., 1]               # only the y component
+        return total
+
+    def _raw_By(self, x, z):
+        """By at y = 0 with unit current (used by the normalisation)."""
+        return self._raw_B(x, 0.0, z)[..., 1]
 
     def B(self, x, y, z):
-        """Return the field vector in T, shape (..., 3).
+        """Return the field vector [Bx, By, Bz] in T, shape (..., 3).
 
-        Only By is modelled (Bx, Bz are left at zero, as in HardEdgeField).
-        The y argument is ignored: the field is evaluated at y = 0, the
-        same convention used by InterpolatedField.
+        All three components are computed at any y. At y = 0, Bx and Bz vanish
+        by the symmetry y -> -y of the filament set, so By(x, z) is unchanged
+        with respect to the previous 2D version.
         """
-        by = self._scale * self._raw_By(x, z)
-        out = np.zeros(by.shape + (3,))
-        out[..., 1] = by
-        return out
+        return self._scale * self._raw_B(x, y, z)
