@@ -38,20 +38,20 @@ class Particle:
     ctau: float = np.inf   # mm, mean decay length in the rest frame (np.inf = stable)
 
 # --- Leptons ---
-ELECTRON  = Particle("e-",  0.51099895, -1)
-POSITRON  = Particle("e+",  0.51099895, +1)
+#ELECTRON  = Particle("e-",  0.51099895, -1)
+#POSITRON  = Particle("e+",  0.51099895, +1)
 MU_MINUS  = Particle("mu-", 105.6583755, -1, 658_638.4)
 MU_PLUS   = Particle("mu+", 105.6583755, +1, 658_638.4)
 
 # --- Neutrinos (massless, invisible to the detector) ---
-NU_MU     = Particle("nu_mu",    0.0, 0)
-NU_MU_BAR = Particle("nu_mubar", 0.0, 0)
+#NU_MU     = Particle("nu_mu",    0.0, 0)
+#NU_MU_BAR = Particle("nu_mubar", 0.0, 0)
 
 # --- Mesons ---
-PI_MINUS  = Particle("pi-", 139.57039, -1, 7_804.5)
-PI_PLUS   = Particle("pi+", 139.57039, +1, 7_804.5)
-K_MINUS   = Particle("K-",  493.677, -1, 3_711.0)
-K_PLUS    = Particle("K+",  493.677, +1, 3_711.0)
+#PI_MINUS  = Particle("pi-", 139.57039, -1, 7_804.5)
+#PI_PLUS   = Particle("pi+", 139.57039, +1, 7_804.5)
+#K_MINUS   = Particle("K-",  493.677, -1, 3_711.0)
+#K_PLUS    = Particle("K+",  493.677, +1, 3_711.0)
 
 # --- Quarkonia ---
 JPSI      = Particle("J/psi", 3096.900, 0, 2.13e-9)   # Gamma = 92.6 keV -> decays at the vertex
@@ -87,11 +87,11 @@ class DecayChannel:
             raise ValueError(f"{self.parent.name} -> {d1.name} {d2.name} is kinematically forbidden")
 
 JPSI_MUMU   = DecayChannel(JPSI,     (MU_PLUS, MU_MINUS),    br=0.05961)
-JPSI_EE     = DecayChannel(JPSI,     (POSITRON, ELECTRON),   br=0.05971)
-PI_PLUS_MUNU  = DecayChannel(PI_PLUS,  (MU_PLUS, NU_MU),     br=0.99988)
-PI_MINUS_MUNU = DecayChannel(PI_MINUS, (MU_MINUS, NU_MU_BAR), br=0.99988)
-K_PLUS_MUNU   = DecayChannel(K_PLUS,   (MU_PLUS, NU_MU),     br=0.6356)
-K_MINUS_MUNU  = DecayChannel(K_MINUS,  (MU_MINUS, NU_MU_BAR), br=0.6356)
+#JPSI_EE     = DecayChannel(JPSI,     (POSITRON, ELECTRON),   br=0.05971)
+#PI_PLUS_MUNU  = DecayChannel(PI_PLUS,  (MU_PLUS, NU_MU),     br=0.99988)
+#PI_MINUS_MUNU = DecayChannel(PI_MINUS, (MU_MINUS, NU_MU_BAR), br=0.99988)
+#K_PLUS_MUNU   = DecayChannel(K_PLUS,   (MU_PLUS, NU_MU),     br=0.6356)
+#K_MINUS_MUNU  = DecayChannel(K_MINUS,  (MU_MINUS, NU_MU_BAR), br=0.6356)
 
 #---------------------------------------------------------------------------------------------
 #------------------- Phantom Materials -------------------------------------------------------
