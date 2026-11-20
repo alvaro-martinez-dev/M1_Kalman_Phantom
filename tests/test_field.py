@@ -22,8 +22,8 @@ Z_CENTRE = Z_START + Z_LENGTH / 2.0
 class TestHardEdgeField:
 
     def make(self, B0=1.0):
-        return HardEdgeField(B0=B0, z_start=Z_START, length=Z_LENGTH,
-                             half_gap=X_HALF_GAP)
+        return HardEdgeField(B0=B0, z_start=Z_START, z_length=Z_LENGTH,
+                             x_half_gap=X_HALF_GAP)
 
     def test_symmetry_x(self):
         f = self.make()
