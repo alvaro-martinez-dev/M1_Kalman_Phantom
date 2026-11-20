@@ -6,8 +6,8 @@
 # (smoother, central_differences, finite-difference steps); the hits name already carries the
 # hashes of the propagation (Beam, Lay, Magn, Prop):
 #   tracks.parquet: one row per track (status, chi2, ndf), see src/kalman/fit.py
-#   fit.parquet:    one row per (track, hit): predicted, filtered and smoothed states with errors,
-#                   and the predicted and smoothed residuals
+#   fit.parquet:    one row per (track, hit): predicted, filtered and smoothed states with errors
+#                   and correlations, and the predicted and smoothed residuals
 #   metadata.yml:   date, git commit, the hits dataset used and what it was made from (propagation,
 #                   initial beam), the prior, the options of the fit and a summary (chi2/ndf)
 #   report.pdf:     the fit against the MC truth, if run.plot is true (plotting/plot_fit.py)

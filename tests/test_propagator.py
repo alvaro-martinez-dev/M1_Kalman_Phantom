@@ -85,7 +85,7 @@ def test_proton_stops_at_the_csda_range():
 
 def test_hard_edge_magnet_matches_the_circle():
     B0, T = 1.0, 500.0
-    field = HardEdgeField(B0=B0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
+    field = HardEdgeField(B0=B0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
     prop = Propagator(geometry(), field, HALF_GAP, step=0.5)
     res = prop.propagate(proton_state(300.0, T), Z_MAG + L_MAG)
 
@@ -120,7 +120,7 @@ def test_field_is_used_before_the_phantom():
 
 
 def test_straight_line_outside_the_field_support():
-    field = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
+    field = HardEdgeField(B0=1.0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
     prop = Propagator(geometry(), field, HALF_GAP)
     assert prop.field_is_zero(Z_PH + L_WATER, Z_MAG)
     assert prop.field_is_zero(Z_MAG + L_MAG, 800.0)
@@ -130,7 +130,7 @@ def test_straight_line_outside_the_field_support():
 
 
 def test_field_support():
-    hard = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
+    hard = HardEdgeField(B0=1.0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
     assert hard.z_support() == (Z_MAG, Z_MAG + L_MAG)
     interp = InterpolatedField.from_field(hard, x_max=HALF_GAP, z_min=Z_MAG - 50.0, z_max=Z_MAG + L_MAG + 50.0,
                                           dx=1.0, dz=2.0)
@@ -174,7 +174,7 @@ def test_no_field_inside_phantom_beyond_the_half_gap():
 
 
 def test_field_map_starting_inside_phantom_warns_and_is_a_cut():
-    source = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
+    source = HardEdgeField(B0=1.0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
     field = InterpolatedField.from_field(source, x_max=HALF_GAP, z_min=Z_PH + 100.0,   # inside the water
                                          z_max=Z_MAG + L_MAG, dx=1.0, dz=2.0)
     with pytest.warns(UserWarning, match="inside the phantom"):

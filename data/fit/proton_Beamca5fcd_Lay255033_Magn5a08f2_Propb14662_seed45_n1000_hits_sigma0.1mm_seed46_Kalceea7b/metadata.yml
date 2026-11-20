@@ -1,7 +1,7 @@
-created: '2026-11-17T17:55:29'
-git_commit: 87c2123153d07939b2450e096ccc355d385664cc
+created: '2026-11-20T23:42:42'
+git_commit: bb8ea8de306a1cc2dad351a7cd5e9fa63c3d8cba
 git_uncommitted_changes: true
-n_rows: 200
+n_rows: 1000
 config_source: configs\config.yaml
 input: hits/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000_hits_sigma0.1mm_seed46
 input_created: '2026-11-17T17:54:45'
@@ -49,7 +49,7 @@ planes:
 - name: D_after_magnet_1
   z: 800.0
 kalman_hash: ceea7b
-n_max: 200
+n_max: null
 smoother: true
 central_differences: false
 fd_steps:
@@ -66,10 +66,10 @@ prior:
   - 1.0
   - 1.0e-06
   - 3.7484381507705125e-11
-n_tracks: 200
-n_ok: 200
+n_tracks: 1000
+n_ok: 1000
 n_stopped: 0
-n_hits: 2000
-chi2_ndf_mean: 1.0506985102523567
-time_s: 22.6
+n_hits: 10000
+chi2_ndf_mean: 1.0109056506150647
+time_s: 64.4
 n_workers: 8

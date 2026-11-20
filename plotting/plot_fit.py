@@ -4,12 +4,18 @@
 # pdf that compares the fitted states with the MC truth of the propagation the hits come from
 # (joined by track_id, plane_index; the truth is read from the propagation, the fit never sees it).
 # Filter (filt) and smoother (smooth, if the fit has it) are drawn side by side:
-#   1. Pulls (fit - true) / sigma_fit of x, tx and q/p at all the planes, against N(0, 1), one page
-#      per stage: the errors of the fit are right if the pulls are N(0, 1)
+#   1. Pulls (fit - true) / sigma_fit of x, tx and q/p against N(0, 1), one page per stage: the
+#      errors of the fit are right if the pulls are N(0, 1). ONE plane per track, chosen at random:
+#      the pulls of the planes of a track are correlated (q/p is a single number per track, the
+#      smoother uses the same hits at every plane), so a histogram of all the planes would not
+#      have independent entries and its chi2 against N(0, 1) would mean nothing
 #   2. chi2 of the tracks against chi2(ndf), and its probability against a flat distribution
 #   3. Per detector plane: resolution std(fit - true) against the error the fit gives, sqrt(<sigma^2>)
 #   4. Per detector plane: mean and std of the pulls, against 0 and 1
-#   5. A few tracks: fit - true of x and q/p along z with their ±1 sigma bands, and the hits
+#   5. NEES = (fit - true)^T C^-1 (fit - true) against chi2(3): tests the whole covariance, also the
+#      correlations that the pulls do not see. Histogram at one plane per track, and mean per plane
+#      (only for fits that store the correlations, corr_* columns of src/kalman/fit.py)
+#   6. A few tracks: fit - true of x and q/p along z with their ±1 sigma bands, and the hits
 #
 # Usage (from the repo root), to redo the report of an existing fit:
 #   python -m plotting.plot_fit fit/<name>
@@ -27,6 +33,7 @@ from plotting.plot_hits import chi2_text, gaussian_panel
 from plotting.plot_init_beam import (COLOR_AXIS, COLOR_EXPECTED, COLOR_MUTED, COLOR_TEXT, PAGE_SIZE,
                                      expected_panel, n_bins, style_axes)
 from plotting.plot_layout import COLORS_MATERIAL
+from src.kalman.fit import CORR_PAIRS
 from src.utils.dataset_io import dataset_path, load_dataset, load_table
 
 REPORT_NAME = "report.pdf"
@@ -68,7 +75,29 @@ def fit_with_truth(fit, metadata, stages):
             df[f"pull_{var}_{st}"] = d / df[f"{var}_{st}_err"]
             df[f"d_{var}_{st}"] = d * scale
             df[f"e_{var}_{st}"] = df[f"{var}_{st}_err"] * scale
+    if has_correlations(df, stages):
+        for st in stages:
+            df[f"nees_{st}"] = nees(df, st)
     return df
+
+
+def has_correlations(df, stages):
+    return all(f"corr_{va}_{vb}_{st}" in df for (_, va), (_, vb) in CORR_PAIRS for st in stages)
+
+
+# NEES of each row: with z = pulls and R = correlation matrix, (fit - true)^T C^-1 (fit - true) = z^T R^-1 z
+# (same number, but R is well conditioned while C mixes mm, rad and e/MeV)
+def nees(df, stage):
+    z = np.stack([df[f"pull_{v}_{stage}"].to_numpy() for v in VARIABLES], axis=1)
+    R = np.broadcast_to(np.eye(3), (len(df), 3, 3)).copy()
+    for (a, va), (b, vb) in CORR_PAIRS:
+        R[:, a, b] = R[:, b, a] = df[f"corr_{va}_{vb}_{stage}"].to_numpy()
+    return np.einsum("ni,ni->n", z, np.linalg.solve(R, z[:, :, None])[:, :, 0])
+
+
+# One row per track, at a plane chosen at random (seed): independent entries for a histogram
+def one_per_track(df, seed):
+    return df.groupby("track_id").sample(n=1, random_state=seed)
 
 
 # Page with an empty figure and the header that identifies the fit
@@ -86,21 +115,23 @@ def new_page(title, metadata):
     return fig
 
 
-# Page 1 (one per stage): pulls of x, tx and q/p at all the planes against N(0, 1)
-def page_pulls(df, metadata, stage):
+# Page 1 (one per stage): pulls of x, tx and q/p against N(0, 1), at one random plane per track
+# sample: one_per_track(df, seed), the same rows for every stage
+def page_pulls(sample, metadata, stage):
 
-    fig = new_page(f"Pulls of the {STAGES[stage][0].lower()} at all the planes", metadata)
+    fig = new_page(f"Pulls of the {STAGES[stage][0].lower()} (one random plane per track)", metadata)
     grid = fig.add_gridspec(2, 3, height_ratios=[1.6, 1])
     for j, (var, (label, _, _)) in enumerate(VARIABLES.items()):
         ax = fig.add_subplot(grid[0, j])
         ax_pull = fig.add_subplot(grid[1, j], sharex=ax)
-        gaussian_panel(ax, ax_pull, df[f"pull_{var}_{stage}"].to_numpy(), 0.0, 1.0,
+        gaussian_panel(ax, ax_pull, sample[f"pull_{var}_{stage}"].to_numpy(), 0.0, 1.0,
                        f"({label}$_\\mathrm{{fit}}$ − {label}$_\\mathrm{{true}}$) / $\\sigma_\\mathrm{{fit}}$")
+        ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
         if j == 0:
             ax.legend(["Fit", "N(0, 1)"], loc="upper right", fontsize=8, frameon=False)
-    fig.text(0.5, 0.02, "One entry per hit. The entries of a track are correlated (q/p barely changes along it), "
-             "so the $\\chi^2$ of the histogram, which assumes independent entries, can be > 1 with std ≈ 1",
-             ha="center", fontsize=8, color=COLOR_MUTED)
+    fig.text(0.5, 0.02, "One entry per track, at a plane chosen at random: the planes of a track are correlated "
+             "(q/p is one number per track), so only one of them gives independent entries. "
+             "Per plane: page 4", ha="center", fontsize=8, color=COLOR_MUTED)
     return fig
 
 
@@ -224,7 +255,51 @@ def page_pull_planes(df, metadata, stages):
     return fig
 
 
-# Page 5: a few tracks chosen at random (seed): fit - true of x and q/p along z, with ±1 sigma bands
+# Page 5: NEES against chi2(3). Top: histogram at one random plane per track (sample), one column
+# per stage. Bottom: mean NEES per plane (expected 3; its error is std / sqrt(n), the planes are
+# correlated with each other but each point is right on its own)
+def page_nees(df, sample, metadata, stages):
+
+    fig = new_page("NEES = (fit − true)$^T$ C$^{-1}$ (fit − true): the full covariance against $\\chi^2$(3)",
+                   metadata)
+    grid = fig.add_gridspec(3, len(stages), height_ratios=[1.6, 1, 1.4])
+    for j, st in enumerate(stages):
+        name, _ = STAGES[st]
+        x = sample[f"nees_{st}"].to_numpy()
+        ax = fig.add_subplot(grid[0, j])
+        ax_pull = fig.add_subplot(grid[1, j], sharex=ax)
+        edges = np.linspace(0, max(np.quantile(x, 0.999), chi2_dist.ppf(0.999, 3)), n_bins(len(x)) + 1)
+        expected = len(x) * np.diff(chi2_dist.cdf(edges, 3))
+        c2, nd = expected_panel(ax, ax_pull, None, x, edges, expected, xlabel=f"NEES of the {name.lower()}")
+        prob = chi2_dist.sf(x, 3)
+        ax.set_title(f"{name}, one random plane per track\n"
+                     f"mean = {x.mean():.3f} ± {x.std() / np.sqrt(len(x)):.3f} (expected 3)\n"
+                     f"mean P($\\chi^2$, 3) = {prob.mean():.3f} (expected 0.5)\n"
+                     f"histogram vs $\\chi^2$(3): $\\chi^2$/ndof = {c2:.1f}/{nd} = {c2 / max(nd, 1):.2f}",
+                     fontsize=8, color=COLOR_TEXT, loc="left")
+        ax.legend(["Fit", "$\\chi^2$(3)"], loc="upper right", fontsize=8, frameon=False)
+
+    planes = metadata["planes"]
+    index = np.arange(len(planes))
+    offsets = np.linspace(-0.12, 0.12, len(stages)) if len(stages) > 1 else [0.0]
+    ax = fig.add_subplot(grid[2, :])
+    style_axes(ax)
+    titles = []
+    for st, offset in zip(stages, offsets):
+        name, color = STAGES[st]
+        s = per_plane(df, f"nees_{st}", len(planes))
+        ax.errorbar(index + offset, s["mean"], yerr=s["mean_err"], fmt="o", markersize=MARKER_SIZE,
+                    color=color, label=name)
+        titles.append(f"{name}: " + chi2_text(s["mean"], s["mean_err"], 3.0))
+    ax.axhline(3.0, color=COLOR_EXPECTED, linewidth=1.5)
+    ax.set_title("Mean NEES per plane (expected 3)\n" + "\n".join(titles), fontsize=8, color=COLOR_TEXT, loc="left")
+    ax.set_ylabel("Mean NEES", fontsize=9, color=COLOR_MUTED)
+    ax.legend(loc="upper right", fontsize=7, frameon=False, ncols=len(stages))
+    plane_axis(ax, planes, narrow=True)
+    return fig
+
+
+# Page 6: a few tracks chosen at random (seed): fit - true of x and q/p along z, with ±1 sigma bands
 def page_examples(df, metadata, stages, n_tracks, seed):
 
     fig = new_page("A few tracks: fit − true along z, with the ±1σ band of the fit", metadata)
@@ -269,10 +344,18 @@ def plot_fit(fit_dir, out_path=None, n_tracks=N_EXAMPLE_TRACKS, seed=0):
     stages = ["filt", "smooth"] if metadata["smoother"] else ["filt"]
     df = fit_with_truth(fit, metadata, stages)
 
+    sample = one_per_track(df, seed)
+
     # All the pages are built first: a failure does not leave a partial pdf behind
-    pages = [page_pulls(df, metadata, st) for st in stages]
+    pages = [page_pulls(sample, metadata, st) for st in stages]
     pages += [page_chi2(tracks, metadata), page_resolution(df, metadata, stages),
-              page_pull_planes(df, metadata, stages), page_examples(df, metadata, stages, n_tracks, seed)]
+              page_pull_planes(df, metadata, stages)]
+    if has_correlations(df, stages):
+        pages.append(page_nees(df, sample, metadata, stages))
+    else:
+        warnings.warn(f"{fit_dir} does not store the correlations of the covariance (fit made before they "
+                      "were added): no NEES page. Redo the fit to get it")
+    pages.append(page_examples(df, metadata, stages, n_tracks, seed))
 
     out_path = Path(out_path) if out_path is not None else fit_dir / REPORT_NAME
     with PdfPages(out_path) as pdf:

@@ -26,7 +26,7 @@ def vacuum_transport():
 
 def magnet_transport(central=False):
     g = Geometry(z_start_magnet=Z_MAG, z_length_magnet=L_MAG, spacing_after_last=100.0)
-    field = HardEdgeField(B0=1.0, z_start=Z_MAG, length=L_MAG, half_gap=HALF_GAP)
+    field = HardEdgeField(B0=1.0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
     return Transport(Propagator(g, field, HALF_GAP, step=5.0), central=central)
 
 

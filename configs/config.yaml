@@ -162,7 +162,7 @@ hits:
 kalman:
   # Kalman fit of the hits (scripts/generate_fit.py). The model of the fit (geometry, field,
   # propagator and the beam as prior) is read from the metadata of the datasets, not from this yaml
-  input: hits/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n1000_hits_sigma0.1mm_seed46   # hits dataset, relative to data/
+  input: hits/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n10000_hits_sigma0.1mm_seed46   # hits dataset, relative to data/
   n_max: null                 # fit only the first n tracks of the input (null: all of them)
   smoother: true              # also run the RTS smoother after the filter (both are saved)
   central_differences: false  # Jacobians by central differences (slower) instead of forward ones

@@ -22,7 +22,8 @@
 # Output, two tables:
 #   fit: one row per (track, hit), the identifiers of the hit and, for stage in pred, filt, smooth:
 #       x_<stage>, tx_<stage>, q_over_p_<stage> and their errors <var>_<stage>_err (sqrt of the
-#       diagonal of the covariance); res_pred, res_pred_err, chi2_k (predicted residuals);
+#       diagonal of the covariance) and its correlations corr_x_tx_<stage>, corr_x_q_over_p_<stage>,
+#       corr_tx_q_over_p_<stage>; res_pred, res_pred_err, chi2_k (predicted residuals);
 #       res_smooth, res_smooth_err (smoothed residuals). The smooth columns only if smoother=True
 #   fit_tracks: one row per track: track_id, input_row, event_id, n_hits, status, chi2, ndf
 #       status: "ok", or "stopped" if the predicted track stops before one of its hits (no fit rows)
@@ -46,6 +47,8 @@ from src.utils.config_loader import make_geometry, make_propagator, particle_by_
 from src.utils.dataset_io import load_dataset, load_table
 
 STATE_VARS = ("x", "tx", "q_over_p")
+# Off-diagonal pairs ((index, name), (index, name)) of the covariance stored as correlations
+CORR_PAIRS = [((a, STATE_VARS[a]), (b, STATE_VARS[b])) for a in range(3) for b in range(a + 1, 3)]
 HIT_ID_COLUMNS = ["track_id", "input_row", "event_id", "plane_index", "plane", "z", "x_meas", "sigma_x"]
 TRACK_COLUMNS = ["track_id", "input_row", "event_id", "n_hits", "status", "chi2", "ndf"]
 
@@ -103,13 +106,17 @@ def load_model(hits_path, fd_steps=FD_STEPS, central=False):
     }
 
 
-# Columns of the fit table for one stage: state and errors from (n, 3) states and (n, 3, 3) covariances
+# Columns of the fit table for one stage, from (n, 3) states and (n, 3, 3) covariances: state,
+# errors and the correlation coefficients corr_<a>_<b>_<stage> (with the errors they give back the
+# full covariance, which the NEES of plotting/plot_fit.py needs)
 def _stage_columns(stage, x, C):
     err = np.sqrt(np.diagonal(C, axis1=1, axis2=2))
     cols = {}
     for j, var in enumerate(STATE_VARS):
         cols[f"{var}_{stage}"] = x[:, j]
         cols[f"{var}_{stage}_err"] = err[:, j]
+    for (a, va), (b, vb) in CORR_PAIRS:
+        cols[f"corr_{va}_{vb}_{stage}"] = C[:, a, b] / (err[:, a] * err[:, b])
     return cols
 
 
