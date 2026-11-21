@@ -1,0 +1,55 @@
+created: '2026-11-21T18:55:49'
+git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+git_uncommitted_changes: true
+config_source: configs\config.yaml
+with_detectors: true
+n_detector_planes: 9
+n_phantom_layers: 1
+n_phantom_detector_planes: 0
+n_magnet_detector_planes: 1
+layout_hash: b85d6f
+layout_parameters:
+  z_start_phantom: 50.0
+  phantom_layers:
+  - material: WATER
+    thickness: 200.0
+  z_start_magnet: 400.0
+  z_length_magnet: 300.0
+  x_half_gap: 60.0
+  spacing_after_last: 100.0
+  placement:
+    n_before_phantom: 1
+    n_after_phantom_before_magnet: 2
+    n_after_magnet: 1
+    inside_phantom: true
+    n_inside_magnet: 1
+geometry:
+  spacing_after_last: 100
+  phantom:
+    enabled: true
+    z_start: 50.0
+    layers:
+    - material: WATER
+      thickness: 200.0
+  magnet:
+    enabled: true
+    z_start: 400.0
+    z_length: 300.0
+    x_half_gap: 60.0
+    y_height: 400
+    B0: 1.0
+    model: biot_savart
+    biot_savart:
+      n_filaments: 80
+    interpolation:
+      enabled: true
+      dx: 1.0
+      dz: 0.5
+  detector_planes:
+    enabled: true
+    placement:
+      n_before_phantom: 1
+      n_after_phantom_before_magnet: 2
+      n_after_magnet: 1
+      n_inside_magnet: 1
+      inside_phantom: true

@@ -1,0 +1,46 @@
+created: '2026-11-21T18:57:43'
+git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+git_uncommitted_changes: true
+config_source: configs\config.yaml
+field_class: HardEdgeField
+magnet_hash: 7e9677
+magnet_parameters:
+  z_start: 400.0
+  z_length: 300.0
+  x_half_gap: 60.0
+  B0: 1.0
+  model: hard_edge
+z_end_system: 800.0
+plot_ranges:
+  z_mm:
+  - 0.0
+  - 800.0
+  - 2000
+  x_mm:
+  - -60.0
+  - 60.0
+  - 401
+  x_offset_mm: 48.0
+  window_half_width_mm: 100.0
+results:
+  By_centre_T: 1.0
+  max_abs_deviation_in_window_T: 0.0
+  relative_deviation_in_window: 0.0
+  By_integral_x0_T_mm: 300.15007503751866
+  effective_length_mm: 300.15007503751866
+  max_abs_interpolation_error_z_T: 0.0
+  max_abs_interpolation_error_x_T: 0.0
+magnet:
+  enabled: true
+  z_start: 400.0
+  z_length: 300.0
+  x_half_gap: 60.0
+  y_height: 400
+  B0: 1.0
+  model: hard_edge
+  biot_savart:
+    n_filaments: 80
+  interpolation:
+    enabled: true
+    dx: 1.0
+    dz: 0.5

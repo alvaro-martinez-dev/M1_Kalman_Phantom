@@ -1,0 +1,46 @@
+created: '2026-11-21T19:07:31'
+git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+git_uncommitted_changes: true
+n_rows: 10000
+config_source: configs\config.yaml
+input: data\propagation\proton_low_Beam9c63cf_Lay09e691_Magn9eaece_Propb14662_seed59_n10000
+input_created: '2026-11-21T19:04:22'
+input_git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+propagation:
+  input: init_beam/proton_low_n100000_seed42_Beam9c63cf
+  seed: 59
+  n_tracks: 10000
+  n_stopped: 10000
+  layout_name: layout_Lay09e691_11Det_3Layers_2PhDet_1MagDet
+  beam_hash: 9c63cf
+  layout_hash: 09e691
+  magnet_hash: 9eaece
+  propagator_hash: b14662
+seed: 70
+sigma_x: 0.1
+particle: p
+n_tracks: 10000
+n_hits: 24715
+planes:
+- name: D_before_phantom_1
+  z: 25.0
+- name: D_phantom_start
+  z: 50.0
+- name: D_layer_1_to_2
+  z: 100.0
+- name: D_layer_2_to_3
+  z: 120.0
+- name: D_phantom_end
+  z: 170.0
+- name: D_gap_1
+  z: 246.66666666666669
+- name: D_gap_2
+  z: 323.33333333333337
+- name: D_magnet_start
+  z: 400.0
+- name: D_magnet_1
+  z: 550.0
+- name: D_magnet_end
+  z: 700.0
+- name: D_after_magnet_1
+  z: 750.0
