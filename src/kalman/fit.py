@@ -87,7 +87,8 @@ def beam_prior(beam, particle):
 # fd_steps: finite-difference steps of the Jacobians (default: transport.FD_STEPS)
 # central: central differences instead of forward ones
 # Returns: dict with hits, tracks (DataFrames), transport (Transport), prior (z0, x0, C0), particle,
-#          planes_z (z of the planes of the hits dataset, indexed by plane_index),
+#          planes_z (z of the planes of the hits dataset, indexed by plane_index; None if its metadata
+#          has no list of planes, then the range constraints cannot be used),
 #          the paths of the propagation and initial beam datasets and the metadata of the three
 def load_model(hits_path, fd_steps=FD_STEPS, central=False):
     tracks, hits_meta = load_dataset(hits_path)
@@ -111,9 +112,8 @@ def load_model(hits_path, fd_steps=FD_STEPS, central=False):
     field = build_field(cfg, geometry)
     propagator = make_propagator(cfg, geometry, field, particle)
 
-    if "planes" not in hits_meta:
-        raise ValueError(f"{hits_path} has no list of planes in its metadata (needed for the range constraints)")
-    planes_z = np.array([float(p["z"]) for p in hits_meta["planes"]])
+    # Only the range constraints need the planes: older hits datasets without them can still be fitted
+    planes_z = (np.array([float(p["z"]) for p in hits_meta["planes"]]) if "planes" in hits_meta else None)
 
     return {
         "hits": hits, "tracks": tracks, "particle": particle, "planes_z": planes_z,
@@ -182,6 +182,7 @@ def fit_track(transport, prior, hits_track, smoother=True, planes_z=None, range_
 # planes_z, range_constraints: as in fit_track
 # Returns: (fit DataFrame, fit_tracks DataFrame), see the header, with the tracks sorted by track_id
 def fit_tracks(hits, transport, prior, smoother=True, planes_z=None, range_constraints=False):
+    _check_planes(planes_z, range_constraints)
     fit_rows, track_rows = [], []
     for track_id, h in hits.groupby("track_id", sort=True):
         first = h.iloc[0]
@@ -199,6 +200,15 @@ def fit_tracks(hits, transport, prior, smoother=True, planes_z=None, range_const
 
     fit = pd.concat(fit_rows, ignore_index=True) if fit_rows else pd.DataFrame()
     return fit, pd.DataFrame(track_rows, columns=TRACK_COLUMNS)
+
+
+# Without the planes the stop of a track (no hit on the next plane) cannot be seen, and the range
+# constraints would silently lose half of their information
+def _check_planes(planes_z, range_constraints):
+    if range_constraints and planes_z is None:
+        raise ValueError("The range constraints need the z of the planes of the hits dataset (planes_z); "
+                         "hits datasets made before the list of planes was saved in their metadata cannot "
+                         "use them: regenerate the hits, or fit without range constraints")
 
 
 # Each worker receives the transport (propagator with its field, ~MB) once, not once per chunk
@@ -220,6 +230,7 @@ def _run_chunk(hits_chunk):
 # On Windows the calling script must be protected by  if __name__ == "__main__":
 def fit_tracks_parallel(hits, transport, prior, smoother=True, n_workers=None, progress=True,
                         planes_z=None, range_constraints=False):
+    _check_planes(planes_z, range_constraints)    # before starting the processes
     track_ids = np.unique(hits["track_id"])
     n_tracks = len(track_ids)
     n_workers = min(resolve_workers(n_workers), max(1, n_tracks))

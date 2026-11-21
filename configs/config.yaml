@@ -67,7 +67,7 @@ decays:
   jpsi_mumu:
     channel: JPSI_MUMU                    # DecayChannel in src/constants.py
     input: init_beam/jpsi_n100000_seed42_Beame38100  # parent dataset, relative to data/
-    seed: 43                              # must differ from the seed of the parent dataset
+    seed: 87                              # must differ from the seed of the parent dataset
 
 # -----------------------------------------------------------------------------------
 # ----------------- Geometry --------------------------------------------------------
@@ -95,7 +95,7 @@ geometry:
     B0: 1.0                   # [T] teslas
     model: biot_savart        # biot_savart / hard_edge
     biot_savart:
-      n_filaments: 80
+      n_filaments: 80         # has to be even
     interpolation:            # tabulate the field once, on a grid covering the whole system in z
       enabled: true           # and the magnet gap in x (outside the gap the field is zero)
       dx: 1.0                 # [mm]
@@ -124,7 +124,7 @@ geometry:
 propagator:
   # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
   input: init_beam/proton_n100000_seed42_Beamca5fcd   # dataset of initial beam, relative to data/ (charged particles)
-  seed: 45    # seed for scattering kicks; must differ from the seed of the input
+  seed: 59    # seed for scattering kicks; must differ from the seed of the input
   n_max: 1000 # number of tracks to propagate, chosen at random from the input (null: all of them).
               # Must be <= the number of tracks of the input. Write it as an integer (1000, not 1e3)
   n_workers: null   # processes for the propagation (src/propagator/multiprocess_propagation.py):
@@ -154,7 +154,7 @@ propagator:
 hits:
   # Measurement on each detector plane (scripts/generate_hits.py): x_meas = x_true + N(0, sigma_x)
   input: propagation/proton_Beamca5fcd_Lay255033_Magn5a08f2_Propb14662_seed45_n10000   # propagation dataset, relative to data/
-  seed: 46                    # seed for the measurement errors; must differ from the seed of the input
+  seed: 70                    # seed for the measurement errors; must differ from the seed of the input
   sigma_x: 0.1                # [mm] resolution of every plane
 
 

@@ -158,6 +158,14 @@ def stopping_sample(n_tracks, seed=11):
     return transport, prior, planes, hits, truth
 
 
+def test_range_constraints_need_the_planes():
+    # without the planes the stop of a track cannot be seen: an error, not a silent half constraint
+    transport, prior, planes, hits, _ = stopping_sample(3)
+    with pytest.raises(ValueError, match="planes"):
+        fit_tracks(hits, transport, prior, range_constraints=True)
+    fit_tracks(hits, transport, prior)    # without range constraints the planes are not needed
+
+
 def test_tracks_that_stop_are_fitted_with_correct_errors():
     transport, prior, planes, hits, truth = stopping_sample(300)
     fit, tracks = fit_tracks(hits, transport, prior, smoother=True, planes_z=planes, range_constraints=True)
