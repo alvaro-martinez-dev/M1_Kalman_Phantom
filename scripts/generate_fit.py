@@ -19,6 +19,7 @@
 #   python -m scripts.generate_fit                               # uses configs/config.yaml
 #   python -m scripts.generate_fit --n-max 200                   # only the first 200 tracks
 #   python -m scripts.generate_fit --no-smoother --workers 4
+#   python -m scripts.generate_fit --no-range-constraints        # e.g. to compare with the constrained fit
 #   python -m scripts.generate_fit --input hits/<name> --name test --overwrite --no-plot
 
 import argparse
@@ -48,6 +49,8 @@ def main():
                         help="fit only the first n tracks (default: kalman.n_max)")
     parser.add_argument("--smoother", action=argparse.BooleanOptionalAction, default=None,
                         help="also run the RTS smoother (default: kalman.smoother)")
+    parser.add_argument("--range-constraints", action=argparse.BooleanOptionalAction, default=None,
+                        help="use the presence/absence of hits as bounds on the energy (default: kalman.range_constraints)")
     parser.add_argument("--workers", type=int, default=None,
                         help="number of processes (default: kalman.n_workers; 1 = serial)")
     parser.add_argument("--name", default=None,
@@ -74,6 +77,8 @@ def main():
     n_max = None if n_max is None else check_count("kalman.n_max", n_max)
     smoother = check_bool("kalman.smoother", args.smoother if args.smoother is not None else get("smoother"))
     central = check_bool("kalman.central_differences", get("central_differences"))
+    range_constraints = check_bool("kalman.range_constraints", args.range_constraints
+                                   if args.range_constraints is not None else get("range_constraints"))
     n_workers = resolve_workers(args.workers if args.workers is not None else get("n_workers"))
 
     # 2. Model of the fit, from the metadata of the hits, propagation and initial beam datasets
@@ -89,10 +94,12 @@ def main():
 
     # 3. Fit
     print(f"Fitting {len(track_ids)} {model['particle'].name} tracks ({len(hits)} hits) of {input_path} "
-          f"(smoother {'on' if smoother else 'off'}, {n_workers} processes)")
+          f"(smoother {'on' if smoother else 'off'}, range constraints {'on' if range_constraints else 'off'}, "
+          f"{n_workers} processes)")
     t_start = time.perf_counter()
     fit, fit_tracks = fit_tracks_parallel(hits, model["transport"], model["prior"], smoother=smoother,
-                                          n_workers=n_workers)
+                                          n_workers=n_workers, planes_z=model["planes_z"],
+                                          range_constraints=range_constraints)
     elapsed = time.perf_counter() - t_start
 
     # 4. Save
@@ -100,7 +107,7 @@ def main():
     hits_meta, prop_meta = model["metadata"]["hits"], model["metadata"]["propagation"]
     z0, x0, C0 = model["prior"]
     fd_steps = [float(s) for s in model["transport"].fd_steps]
-    kal_hash = kalman_hash(smoother, central, fd_steps)
+    kal_hash = kalman_hash(smoother, central, fd_steps, range_constraints)
     name = args.name or (f"{Path(input_path).name}_Kal{kal_hash}" + (f"_n{n_max}" if n_max is not None else ""))
     config_path = config_path.resolve()
     if config_path.is_relative_to(REPO_ROOT):
@@ -127,17 +134,21 @@ def main():
         "particle": model["particle"].name,
         "sigma_x": hits_meta.get("sigma_x"),
         "planes": hits_meta.get("planes"),
-        # options of the fit (kalman_hash: smoother, central_differences, fd_steps)
+        # options of the fit (kalman_hash: smoother, central_differences, fd_steps, range_constraints)
         "kalman_hash": kal_hash,
         "n_max": n_max,
         "smoother": smoother,
         "central_differences": central,
+        "range_constraints": range_constraints,
         "fd_steps": fd_steps,
         "prior": {"z0": float(z0), "x0": [float(v) for v in x0], "C0_diag": [float(v) for v in np.diag(C0)]},
         # summary
         "n_tracks": len(fit_tracks),
         "n_ok": len(ok),
-        "n_stopped": int((fit_tracks["status"] == "stopped").sum()),
+        "n_stopped": int((fit_tracks["status"] == "stopped").sum()),   # fit failed (predicted track stops)
+        "n_range_end": int(fit_tracks["range_end"].sum()),             # tracks that stop in the phantom
+        "n_range_bounded": int((np.isfinite(fit_tracks["s_hi"]) | np.isfinite(fit_tracks["s_lo"])).sum()),
+        "n_safety_net": int(fit_tracks["n_reach"].sum()),              # see src/kalman/filter.py
         "n_hits": len(fit),
         "chi2_ndf_mean": float((ok["chi2"] / ok["ndf"]).mean()) if len(ok) else None,
         "time_s": round(elapsed, 1),

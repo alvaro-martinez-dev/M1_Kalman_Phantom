@@ -66,6 +66,9 @@ def test_kalman_hash():
     assert kalman_hash(True, False, [1e-4, 1e-7, 1e-6]) == h
     assert kalman_hash(False, False, (1e-4, 1e-7, 1e-6)) != h
     assert kalman_hash(True, True, (1e-4, 1e-7, 1e-6)) != h
+    # range constraints: off is the hash of the fits made before the option existed
+    assert kalman_hash(True, False, (1e-4, 1e-7, 1e-6), range_constraints=False) == h
+    assert kalman_hash(True, False, (1e-4, 1e-7, 1e-6), range_constraints=True) != h
 
 
 def test_layout_name_starts_with_its_hash():

@@ -32,6 +32,15 @@ beams:
     p0: 700.0
     sigma_p0: 3.0
 
+  proton_low:                 # T ~ 78.4 MeV: CSDA range ~50 mm of water, so the protons stop in the
+    particle: PROTON          # phantom around the water/bone interface (test of the range constraints)
+    x0: 0.0
+    sigma_x0: 1.0
+    theta0: 0.0
+    sigma_theta0: 1.0e-3
+    p0: 391.5
+    sigma_p0: 3.0
+
   jpsi:
     particle: JPSI
     x0: 0.0
@@ -161,4 +170,7 @@ kalman:
   n_max: null                 # fit only the first n tracks of the input (null: all of them)
   smoother: true              # also run the RTS smoother after the filter (both are saved)
   central_differences: false  # Jacobians by central differences (slower) instead of forward ones
+  range_constraints: true     # use the presence/absence of hits as bounds on the energy (truncated
+                              # Kalman, src/kalman/constraints.py): needed for tracks that stop in
+                              # the phantom. No effect on tracks with energy to spare
   n_workers: null             # processes, as propagator.n_workers (null = half the logical CPUs)

@@ -20,7 +20,7 @@ from matplotlib.figure import Figure
 from scipy.stats import norm
 
 from plotting.plot_init_beam import (CMAP_COUNTS, COLORBAR_ASPECT, COLOR_AXIS, COLOR_DATA, COLOR_EXPECTED,
-                                     COLOR_MUTED, COLOR_TEXT, PAGE_SIZE, PANEL_ASPECT, PULL_ASPECT, expected_panel,
+                                     COLOR_MUTED, COLOR_TEXT, PAGE_SIZE, PANEL_ROWS, expected_panel,
                                      n_bins, stats_title, style_axes)
 from plotting.plot_layout import COLORS_MATERIAL
 from src.utils.dataset_io import dataset_path, load_dataset, load_table
@@ -78,7 +78,7 @@ def gaussian_panel(ax, ax_pull, x, mean, sigma, xlabel):
 def page_residuals(df, metadata):
 
     fig = new_page("Residuals and pulls of all the hits", metadata)
-    grid = fig.add_gridspec(2, 4, height_ratios=[1.6, 1], width_ratios=[1, 1, 1, 1 / COLORBAR_ASPECT])
+    grid = fig.add_gridspec(2, 4, height_ratios=PANEL_ROWS, width_ratios=[1, 1, 1, 1 / COLORBAR_ASPECT])
     sigma = metadata["sigma_x"]
 
     ax = fig.add_subplot(grid[0, 0])

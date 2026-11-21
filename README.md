@@ -355,7 +355,17 @@ For each track, from the prior at z = 0 and hit by hit in beam order:
   on each piece (forward by default, `kalman.central_differences` for central ones) and chained,
   F = F_n ··· F_1. The process noise Q is the multiple scattering: at the end of each slice, the
   2x2 covariance of (dx, dtx) of `src/propagator/scattering.py`, the same one the MC samples its
-  kicks from, evaluated on the mean track and transported by F to the plane.
+  kicks from, evaluated on the mean track and transported by F to the plane. The transport always
+  uses fixed RK steps (even if the MC was adaptive): finite differences need the nominal and the
+  perturbed propagations to take the same steps.
+- **Range constraints** (`kalman.range_constraints`, `src/kalman/constraints.py`): inside the
+  phantom the hits barely measure the energy, and a track that stops there never reaches the
+  magnet. Its energy is measured by where it stopped: it reached its last hit (s₀ < s_hi) and left
+  no hit on the next plane (s₀ > s_lo), with s = 1/p. The boundaries are found with the propagator
+  itself (same stopping criterion as the MC) and applied to the prior by truncating its Gaussian
+  (constrained Kalman filtering by density truncation). Tracks with energy to spare are not
+  affected. The q/p pulls are N(0, 1) except at the last hit of a track that stops, where no
+  Gaussian in q/p describes the energy (see the header of `src/kalman/filter.py`).
 - **Update** (`src/kalman/filter.py`): each hit is a scalar measurement, H = [1, 0, 0],
   V = σ_x². Residual r = m − H x_pred, S = H C_pred Hᵀ + V, gain K = C_pred Hᵀ / S, covariance
   updated in Joseph form. χ²_k = r² / S.
@@ -368,11 +378,14 @@ For each track, from the prior at z = 0 and hit by hit in beam order:
 predicted residuals are independent N(0, 1) and **ndf = n_hits** (not n_hits − 3).
 
 The output goes to `data/fit/<hits name>_Kal<hash>[_n<n_max>]/`, with `Kal<hash>` the hash of
-the options of the fit (`smoother`, `central_differences`, finite-difference steps):
+the options of the fit (`smoother`, `central_differences`, finite-difference steps,
+`range_constraints` when true):
 
 - `tracks.parquet`: one row per track: `track_id`, `input_row`, `event_id`, `n_hits`, `status`
   (`ok`, or `stopped` if the predicted track stops in the phantom before one of its hits; such a
-  track has no fit rows), `chi2`, `ndf`
+  track has no fit rows; with range constraints this should not happen), `chi2`, `ndf`,
+  `range_end` (no hit on the plane after the last one: the track stopped), `s_hi`, `s_lo` (range
+  bounds on 1/p of the prior, NaN if not applied), `n_reach` (safety-net bounds, normally 0)
 - `fit.parquet`: one row per (track, hit): the identifiers and `z`, `x_meas`, `sigma_x` of the
   hit and, for each stage `pred` (prediction), `filt` (filter) and `smooth` (smoother):
   `x_<stage>`, `tx_<stage>`, `q_over_p_<stage>` and their errors `<var>_<stage>_err`; the
@@ -427,7 +440,7 @@ the result gives another name, so two datasets of different systems never overwr
 | `Lay<h>` | geometry and detector planes (positions, thicknesses, materials, number of planes) | `geometry/layout_Lay<h>_...` |
 | `Magn<h>` | what changes the field in the `magnet` block, + the extent of the system if interpolated (`Magnoff` without magnet) | `field/field_Magn<h>_...` |
 | `Prop<h>` | physics options of the propagator: `step`, `adaptive`, `tolerances` (if adaptive), scattering `max_slice` | (only in the propagation) |
-| `Kal<h>` | options of the fit: `smoother`, `central_differences`, finite-difference steps | (only in the fit) |
+| `Kal<h>` | options of the fit: `smoother`, `central_differences`, finite-difference steps, `range_constraints` (only when true, so older fits keep their hash) | (only in the fit) |
 
 Each dataset cites what it was made from by these hashes, and its children inherit its name:
 
@@ -482,8 +495,10 @@ M1_Kalman_Phantom/
 │   │   └── multiprocess_propagation.py   propagation of many tracks in parallel processes
 │   ├── montecarlo/          initial beam, two-body decays, track table, full propagation MC, hits
 │   ├── kalman/              track fit
-│   │   ├── transport.py     prediction: mean track, Jacobian F (finite differences), process noise Q
-│   │   ├── filter.py        forward Kalman filter: update with each hit, chi2
+│   │   ├── transport.py     prediction: mean track, Jacobian F (finite differences), process noise Q,
+│   │   │                    boundary in 1/p between reaching a plane and stopping before it
+│   │   ├── constraints.py   range constraints: truncation of the Gaussian of the state
+│   │   ├── filter.py        forward Kalman filter: range constraints on the prior, update with each hit, chi2
 │   │   ├── smoother.py      Rauch-Tung-Striebel smoother
 │   │   └── fit.py           model from the dataset metadata, beam prior, fit of many tracks (parallel)
 │   └── utils/               yaml loading, dataset save/load, hashes of the dataset names, input validation
@@ -530,11 +545,14 @@ so any result can be traced back to the code and config that produced it.
   classical to adaptive methods*, Rev. Mod. Phys. 82 (2010) 1419.
 - R. E. Kalman, *A New Approach to Linear Filtering and Prediction
   Problems*, J. Basic Eng. 82 (1960) 35.
+- D. Simon y D. L. Simon, *Constrained Kalman Filtering via Density Function 
+  Truncation for Turbofan Engine Health Estimation*, NASA Technical Memorandum NASA/TM-2006-214129 (también ARL-MR-0632, E-15463), NASA Glenn Research Center, 
+  Cleveland, OH, abril de 2006. Retrieved from https://ntrs.nasa.gov/citations/20060012173
 - E. Lund et al., *Track parameter propagation through the application of
   a new adaptive Runge-Kutta-Nyström method in the ATLAS experiment*,
   JINST 4 (2009) P04001.
 - Zeltkevic, M. (1998, April 15). Runge-Kutta methods. Course 10.001 Notes
-  Massachusetts Institute of Technology. Retrieved November 10, 2026, from https://web.mit.edu/10.001/Web/Course_Notes/Differential_Equations_Notes/node5.html
+  Massachusetts Institute of Technology. Retrieved from https://web.mit.edu/10.001/Web/Course_Notes/Differential_Equations_Notes/node5.html
 - V. D. Elvira, “Impact of detector simulation in particle physics collider 
   experiments highlights”, EPJ Web Conf. 214, 02019 (2019). doi:10.1051/epjconf/201921402019
 - S. Navas et al. (Particle Data Group), *Review of Particle Physics*,

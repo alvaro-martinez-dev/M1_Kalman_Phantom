@@ -1,0 +1,18 @@
+created: '2026-11-21T17:26:51'
+git_commit: 9e9345216aca63646d26ca6ac52ab4bad965a5c8
+git_uncommitted_changes: true
+n_rows: 100000
+config_source: configs\config.yaml
+beam_hash: 9c63cf
+run:
+  beam: proton_low
+  n_events: 100000
+  seed: 42
+beam:
+  particle: PROTON
+  x0: 0.0
+  sigma_x0: 1.0
+  theta0: 0.0
+  sigma_theta0: 0.001
+  p0: 391.5
+  sigma_p0: 3.0

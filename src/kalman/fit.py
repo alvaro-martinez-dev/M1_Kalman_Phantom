@@ -24,9 +24,21 @@
 #       x_<stage>, tx_<stage>, q_over_p_<stage> and their errors <var>_<stage>_err (sqrt of the
 #       diagonal of the covariance) and its correlations corr_x_tx_<stage>, corr_x_q_over_p_<stage>,
 #       corr_tx_q_over_p_<stage>; res_pred, res_pred_err, chi2_k (predicted residuals);
-#       res_smooth, res_smooth_err (smoothed residuals). The smooth columns only if smoother=True
-#   fit_tracks: one row per track: track_id, input_row, event_id, n_hits, status, chi2, ndf
+#       res_smooth, res_smooth_err (smoothed residuals). The smooth columns only if smoother=True;
+#       s_reach: safety-net bound s < s_reach [1/MeV] on s = 1/p at the previous hit, applied only if
+#       the mean track would not reach this hit (NaN if not applied)
+#   fit_tracks: one row per track: track_id, input_row, event_id, n_hits, status, chi2, ndf,
+#       range_end, s_hi, s_lo, n_reach
 #       status: "ok", or "stopped" if the predicted track stops before one of its hits (no fit rows)
+#       range_end: the track has no hit on the plane after its last hit, i.e. it stopped (planes are
+#                  100 % efficient). It is detector information, not MC truth
+#       s_hi, s_lo: bounds s_lo < s0 < s_hi [1/MeV] on s = 1/p of the prior: it reached its last hit,
+#                   it did not reach the next plane (NaN if not applied, e.g. irrelevant)
+#       n_reach: number of safety-net bounds applied
+#
+# Range constraints (range_constraints=True): the presence/absence of hits bounds the energy, see
+# src/kalman/constraints.py and src/kalman/filter.py. The plane after the last hit of each track is
+# found in the list of planes of the hits dataset (plane_index is the index in that list).
 #
 # fit_tracks_parallel runs the same fit in several processes (as multiprocess_propagation): the
 # tracks are independent, so the result does not depend on the number of processes.
@@ -50,7 +62,8 @@ STATE_VARS = ("x", "tx", "q_over_p")
 # Off-diagonal pairs ((index, name), (index, name)) of the covariance stored as correlations
 CORR_PAIRS = [((a, STATE_VARS[a]), (b, STATE_VARS[b])) for a in range(3) for b in range(a + 1, 3)]
 HIT_ID_COLUMNS = ["track_id", "input_row", "event_id", "plane_index", "plane", "z", "x_meas", "sigma_x"]
-TRACK_COLUMNS = ["track_id", "input_row", "event_id", "n_hits", "status", "chi2", "ndf"]
+TRACK_COLUMNS = ["track_id", "input_row", "event_id", "n_hits", "status", "chi2", "ndf",
+                 "range_end", "s_hi", "s_lo", "n_reach"]
 
 # Chunks per process (as multiprocess_propagation) and of a serial run (only for the progress bar)
 CHUNKS_PER_WORKER = 8
@@ -74,6 +87,7 @@ def beam_prior(beam, particle):
 # fd_steps: finite-difference steps of the Jacobians (default: transport.FD_STEPS)
 # central: central differences instead of forward ones
 # Returns: dict with hits, tracks (DataFrames), transport (Transport), prior (z0, x0, C0), particle,
+#          planes_z (z of the planes of the hits dataset, indexed by plane_index),
 #          the paths of the propagation and initial beam datasets and the metadata of the three
 def load_model(hits_path, fd_steps=FD_STEPS, central=False):
     tracks, hits_meta = load_dataset(hits_path)
@@ -97,8 +111,12 @@ def load_model(hits_path, fd_steps=FD_STEPS, central=False):
     field = build_field(cfg, geometry)
     propagator = make_propagator(cfg, geometry, field, particle)
 
+    if "planes" not in hits_meta:
+        raise ValueError(f"{hits_path} has no list of planes in its metadata (needed for the range constraints)")
+    planes_z = np.array([float(p["z"]) for p in hits_meta["planes"]])
+
     return {
-        "hits": hits, "tracks": tracks, "particle": particle,
+        "hits": hits, "tracks": tracks, "particle": particle, "planes_z": planes_z,
         "transport": Transport(propagator, fd_steps=fd_steps, central=central),
         "prior": beam_prior(beam_meta["beam"], particle),
         "propagation_path": str(prop_path), "beam_path": str(beam_path),
@@ -120,16 +138,30 @@ def _stage_columns(stage, x, C):
     return cols
 
 
+# planes_z: (n_planes,) z [mm] of the planes of the hits dataset, indexed by plane_index
+# hits_track: hits of ONE track (rows of hits.parquet)
+# Returns: z of the plane after the last hit (where the track left no hit: it stopped before it), or
+#          None if the last hit is on the last plane (or planes_z is None)
+def next_plane_z(planes_z, hits_track):
+    if planes_z is None:
+        return None
+    k_next = int(hits_track["plane_index"].max()) + 1
+    return float(planes_z[k_next]) if k_next < len(planes_z) else None
+
+
 # transport: Transport; prior: (z0, x0, C0)
 # hits_track: hits of ONE track (rows of hits.parquet), any order
 # smoother: also run the RTS smoother
+# planes_z: z of the planes of the dataset (next_plane_z), for the stop constraint
+# range_constraints: apply the range constraints (src/kalman/filter.py)
 # Returns: (DataFrame of its fit rows, FilterResult, SmootherResult or None)
 # Raises TrackStopped if the predicted track stops before one of its hits
-def fit_track(transport, prior, hits_track, smoother=True):
+def fit_track(transport, prior, hits_track, smoother=True, planes_z=None, range_constraints=False):
     hits_track = hits_track.sort_values("z")
     z0, x0, C0 = prior
     res = run_filter(transport, x0, C0, z0, hits_track["z"].to_numpy(),
-                     hits_track["x_meas"].to_numpy(), hits_track["sigma_x"].to_numpy())
+                     hits_track["x_meas"].to_numpy(), hits_track["sigma_x"].to_numpy(),
+                     z_next=next_plane_z(planes_z, hits_track), range_constraints=range_constraints)
 
     cols = {c: hits_track[c].to_numpy() for c in HIT_ID_COLUMNS}
     cols.update(_stage_columns("pred", res.x_pred, res.C_pred))
@@ -141,23 +173,29 @@ def fit_track(transport, prior, hits_track, smoother=True):
         smooth = run_smoother(res)
         cols.update(_stage_columns("smooth", smooth.x_smooth, smooth.C_smooth))
         cols.update(res_smooth=smooth.r, res_smooth_err=np.sqrt(np.clip(smooth.R, 0.0, None)))
+    cols.update(s_reach=res.s_reach)
 
     return pd.DataFrame(cols), res, smooth
 
 
 # hits: hits table (hits.parquet), or the hits of some of its tracks; transport, prior: as in fit_track
+# planes_z, range_constraints: as in fit_track
 # Returns: (fit DataFrame, fit_tracks DataFrame), see the header, with the tracks sorted by track_id
-def fit_tracks(hits, transport, prior, smoother=True):
+def fit_tracks(hits, transport, prior, smoother=True, planes_z=None, range_constraints=False):
     fit_rows, track_rows = [], []
     for track_id, h in hits.groupby("track_id", sort=True):
         first = h.iloc[0]
+        range_end = next_plane_z(planes_z, h) is not None
         try:
-            df, res, _ = fit_track(transport, prior, h, smoother=smoother)
+            df, res, _ = fit_track(transport, prior, h, smoother=smoother, planes_z=planes_z,
+                                   range_constraints=range_constraints)
             fit_rows.append(df)
             status, chi2, ndf = "ok", res.chi2, res.ndf
+            s_hi, s_lo, n_reach = res.s_hi, res.s_lo, int(np.isfinite(res.s_reach).sum())
         except TrackStopped:
-            status, chi2, ndf = "stopped", np.nan, 0
-        track_rows.append((track_id, first["input_row"], first["event_id"], len(h), status, chi2, ndf))
+            status, chi2, ndf, s_hi, s_lo, n_reach = "stopped", np.nan, 0, np.nan, np.nan, 0
+        track_rows.append((track_id, first["input_row"], first["event_id"], len(h), status, chi2, ndf,
+                           range_end, s_hi, s_lo, n_reach))
 
     fit = pd.concat(fit_rows, ignore_index=True) if fit_rows else pd.DataFrame()
     return fit, pd.DataFrame(track_rows, columns=TRACK_COLUMNS)
@@ -167,8 +205,9 @@ def fit_tracks(hits, transport, prior, smoother=True):
 _WORKER_ARGS = {}
 
 
-def _init_worker(transport, prior, smoother):
-    _WORKER_ARGS.update(transport=transport, prior=prior, smoother=smoother)
+def _init_worker(transport, prior, smoother, planes_z, range_constraints):
+    _WORKER_ARGS.update(transport=transport, prior=prior, smoother=smoother, planes_z=planes_z,
+                        range_constraints=range_constraints)
 
 
 def _run_chunk(hits_chunk):
@@ -179,7 +218,8 @@ def _run_chunk(hits_chunk):
 # n_workers: number of processes (None: half the CPUs; 1: serial, in this process)
 # progress: show a tqdm progress bar (in tracks)
 # On Windows the calling script must be protected by  if __name__ == "__main__":
-def fit_tracks_parallel(hits, transport, prior, smoother=True, n_workers=None, progress=True):
+def fit_tracks_parallel(hits, transport, prior, smoother=True, n_workers=None, progress=True,
+                        planes_z=None, range_constraints=False):
     track_ids = np.unique(hits["track_id"])
     n_tracks = len(track_ids)
     n_workers = min(resolve_workers(n_workers), max(1, n_tracks))
@@ -199,11 +239,12 @@ def fit_tracks_parallel(hits, transport, prior, smoother=True, n_workers=None, p
     with bar:
         if n_workers == 1:
             for k, chunk in enumerate(chunks):
-                results[k] = fit_tracks(chunk, transport, prior, smoother=smoother)
+                results[k] = fit_tracks(chunk, transport, prior, smoother=smoother, planes_z=planes_z,
+                                        range_constraints=range_constraints)
                 bar.update(sizes[k])
         else:
             with ProcessPoolExecutor(max_workers=n_workers, initializer=_init_worker,
-                                     initargs=(transport, prior, smoother)) as pool:
+                                     initargs=(transport, prior, smoother, planes_z, range_constraints)) as pool:
                 futures = {pool.submit(_run_chunk, chunk): k for k, chunk in enumerate(chunks)}
                 for future in as_completed(futures):
                     k = futures[future]

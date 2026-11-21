@@ -15,7 +15,15 @@
 #   5. NEES = (fit - true)^T C^-1 (fit - true) against chi2(3): tests the whole covariance, also the
 #      correlations that the pulls do not see. Histogram at one plane per track, and mean per plane
 #      (only for fits that store the correlations, corr_* columns of src/kalman/fit.py)
-#   6. A few tracks: fit - true of x and q/p along z with their ±1 sigma bands, and the hits
+#   6. Tracks that stop in the phantom (fits with range_end, see src/kalman/fit.py): how many, the
+#      coverage of the range bounds (true initial 1/p inside [s_lo, s_hi]), the energy resolution at
+#      the phantom entrance against that of the beam, and the pulls against the number of hits
+#      before the last one
+#   7. A few tracks: fit - true of x and q/p along z with their ±1 sigma bands, and the hits
+#
+# The LAST hit of a track that stops is left out of pages 1, 3, 4 and 5: there the true energy is
+# anywhere between ~1 MeV and the energy to cross the layer, which no Gaussian in q/p describes (see
+# src/kalman/filter.py), and it would hide how the rest of the fit behaves. Page 6 shows it apart.
 #
 # Usage (from the repo root), to redo the report of an existing fit:
 #   python -m plotting.plot_fit fit/<name>
@@ -31,9 +39,11 @@ from scipy.stats import chi2 as chi2_dist
 
 from plotting.plot_hits import chi2_text, gaussian_panel
 from plotting.plot_init_beam import (COLOR_AXIS, COLOR_EXPECTED, COLOR_MUTED, COLOR_TEXT, PAGE_SIZE,
-                                     expected_panel, n_bins, style_axes)
+                                     PANEL_ROWS, expected_panel, n_bins, style_axes)
 from plotting.plot_layout import COLORS_MATERIAL
 from src.kalman.fit import CORR_PAIRS
+from src.propagator.propagator import kinetic_energy
+from src.utils.config_loader import particle_by_name
 from src.utils.dataset_io import dataset_path, load_dataset, load_table
 
 REPORT_NAME = "report.pdf"
@@ -81,6 +91,20 @@ def fit_with_truth(fit, metadata, stages):
     return df
 
 
+# Marks the rows of the tracks that stop in the phantom (range_end of the fit tracks table; False for
+# fits made before it existed): stops (bool, per row), hits_to_last (hits after this one in its
+# track, 0 = last hit) and last_of_stop (the last hit of a track that stops, see the header)
+def mark_stopping(df, tracks):
+    stopping = set(tracks.loc[tracks["range_end"], "track_id"]) if "range_end" in tracks else set()
+    df["stops"] = df["track_id"].isin(stopping)
+    df["hits_to_last"] = df.groupby("track_id")["plane_index"].transform("max") - df["plane_index"]
+    df["last_of_stop"] = df["stops"] & (df["hits_to_last"] == 0)
+    return df
+
+
+EXCLUDED_NOTE = "Without the last hit of the tracks that stop in the phantom (page 'Tracks that stop')."
+
+
 def has_correlations(df, stages):
     return all(f"corr_{va}_{vb}_{st}" in df for (_, va), (_, vb) in CORR_PAIRS for st in stages)
 
@@ -101,15 +125,23 @@ def one_per_track(df, seed):
 
 
 # Page with an empty figure and the header that identifies the fit
-def new_page(title, metadata):
+# excludes_last_of_stop: the page leaves out the last hit of the tracks that stop (see the header):
+#                        say it, if the fit has such tracks
+def new_page(title, metadata, excludes_last_of_stop=False):
 
     commit = str(metadata["git_commit"])[:7]
     if metadata["git_uncommitted_changes"]:
         commit += " + uncommitted changes"
+    range_text = (f", {metadata['n_range_end']} stop in the phantom" if "n_range_end" in metadata else "")
+    constraints = ("  |  range constraints " + ("on" if metadata["range_constraints"] else "off")
+                   if "range_constraints" in metadata else "")
     subtitle = (f"{metadata['particle']}  |  {metadata['n_tracks']} tracks ({metadata['n_ok']} fitted, "
-                f"{metadata['n_stopped']} stopped), {metadata['n_hits']} hits  |  "
-                f"$\\sigma_x$ = {metadata['sigma_x']:g} mm  |  smoother {'on' if metadata['smoother'] else 'off'}\n"
+                f"{metadata['n_stopped']} failed{range_text}), {metadata['n_hits']} hits  |  "
+                f"$\\sigma_x$ = {metadata['sigma_x']:g} mm  |  smoother {'on' if metadata['smoother'] else 'off'}"
+                f"{constraints}\n"
                 f"from {Path(metadata['input']).name}\ncreated {metadata['created']}  |  commit {commit}")
+    if excludes_last_of_stop and metadata.get("n_range_end", 0) > 0:
+        subtitle += f"\n{EXCLUDED_NOTE}"
     fig = Figure(figsize=PAGE_SIZE, layout="constrained")
     fig.suptitle(f"{title}\n{subtitle}", fontsize=11, color=COLOR_TEXT)
     return fig
@@ -119,8 +151,8 @@ def new_page(title, metadata):
 # sample: one_per_track(df, seed), the same rows for every stage
 def page_pulls(sample, metadata, stage):
 
-    fig = new_page(f"Pulls of the {STAGES[stage][0].lower()} (one random plane per track)", metadata)
-    grid = fig.add_gridspec(2, 3, height_ratios=[1.6, 1])
+    fig = new_page(f"Pulls of the {STAGES[stage][0].lower()} (one random plane per track)", metadata, True)
+    grid = fig.add_gridspec(2, 3, height_ratios=PANEL_ROWS)
     for j, (var, (label, _, _)) in enumerate(VARIABLES.items()):
         ax = fig.add_subplot(grid[0, j])
         ax_pull = fig.add_subplot(grid[1, j], sharex=ax)
@@ -141,7 +173,7 @@ def page_chi2(tracks, metadata):
     fig = new_page("$\\chi^2$ of the tracks (predicted residuals of the filter)", metadata)
     ok = tracks[tracks["status"] == "ok"]
     chi2, ndf = ok["chi2"].to_numpy(), ok["ndf"].to_numpy()
-    grid = fig.add_gridspec(2, 2, height_ratios=[1.6, 1])
+    grid = fig.add_gridspec(2, 2, height_ratios=PANEL_ROWS)
 
     # chi2: the tracks may have different ndf (fewer hits if they stop), so the expected counts
     # are the sum of the chi2(ndf) of each group of tracks
@@ -197,7 +229,8 @@ def plane_axis(ax, planes, narrow=False):
 # Page 3: per plane, resolution std(fit - true) (points) and error given by the fit (open markers)
 def page_resolution(df, metadata, stages):
 
-    fig = new_page("Resolution per detector plane: std(fit − true) ● against the error of the fit ○", metadata)
+    fig = new_page("Resolution per detector plane: std(fit − true) ● against the error of the fit ○", metadata,
+                   True)
     planes = metadata["planes"]
     index = np.arange(len(planes))
     offsets = np.linspace(-0.12, 0.12, len(stages)) if len(stages) > 1 else [0.0]
@@ -227,7 +260,7 @@ def page_resolution(df, metadata, stages):
 # Page 4: per plane, mean and std of the pulls of x, tx and q/p, against 0 and 1
 def page_pull_planes(df, metadata, stages):
 
-    fig = new_page("Pulls per detector plane: mean (expected 0) and std (expected 1)", metadata)
+    fig = new_page("Pulls per detector plane: mean (expected 0) and std (expected 1)", metadata, True)
     planes = metadata["planes"]
     index = np.arange(len(planes))
     offsets = np.linspace(-0.12, 0.12, len(stages)) if len(stages) > 1 else [0.0]
@@ -262,7 +295,7 @@ def page_nees(df, sample, metadata, stages):
 
     fig = new_page("NEES = (fit − true)$^T$ C$^{-1}$ (fit − true): the full covariance against $\\chi^2$(3)",
                    metadata)
-    grid = fig.add_gridspec(3, len(stages), height_ratios=[1.6, 1, 1.4])
+    grid = fig.add_gridspec(3, len(stages), height_ratios=PANEL_ROWS + [1.4])
     for j, st in enumerate(stages):
         name, _ = STAGES[st]
         x = sample[f"nees_{st}"].to_numpy()
@@ -296,10 +329,113 @@ def page_nees(df, sample, metadata, stages):
     ax.set_ylabel("Mean NEES", fontsize=9, color=COLOR_MUTED)
     ax.legend(loc="upper right", fontsize=7, frameon=False, ncols=len(stages))
     plane_axis(ax, planes, narrow=True)
+    fig.text(0.5, 0.005, EXCLUDED_NOTE, ha="center", fontsize=8, color=COLOR_MUTED)
     return fig
 
 
-# Page 6: a few tracks chosen at random (seed): fit - true of x and q/p along z, with ±1 sigma bands
+# True initial q/p of each fitted track, from the initial beam dataset (input_row is its row there).
+# Returns: Series indexed by track_id, or None if the beam dataset cannot be read
+def true_initial_qp(tracks, metadata):
+    try:
+        beam_tracks, _ = load_dataset(metadata["beam"]["input"])
+    except (KeyError, FileNotFoundError):
+        return None
+    return tracks.set_index("track_id")["input_row"].map(beam_tracks["q_over_p0"])
+
+
+# Page 6: tracks that stop in the phantom. Top left: summary and coverage of the range bounds. Top
+# right: kinetic energy at the phantom entrance, fit - true, against the spread of the beam. Bottom:
+# mean and std of the pulls of q/p (each stage) and x (smoother) against the hits left to the last one
+def page_stopping(df, tracks, metadata, stages):
+
+    fig = new_page("Tracks that stop in the phantom: energy from the range (range constraints)", metadata)
+    particle = particle_by_name(metadata["particle"])
+    stopping = tracks[tracks["range_end"]]
+    rows = df[df["stops"]]
+    grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.2])
+
+    # Summary and coverage: the true initial s = 1/p must be inside [s_lo, s_hi] (NaN: unbounded)
+    ax = fig.add_subplot(grid[0, 0])
+    ax.axis("off")
+    lines = [f"Tracks fitted: {int((tracks['status'] == 'ok').sum())}",
+             f"Stop in the phantom (no hit on the plane after the last): {len(stopping)}",
+             f"With a range bound on the prior: {int((np.isfinite(tracks['s_hi']) | np.isfinite(tracks['s_lo'])).sum())}",
+             f"Safety-net bounds (mean track not reaching a hit): {int(tracks['n_reach'].sum())}"]
+    qp0 = true_initial_qp(tracks, metadata)
+    if qp0 is not None:
+        s0 = np.sign(particle.charge) * qp0
+        lo = tracks.set_index("track_id")["s_lo"].fillna(-np.inf)
+        hi = tracks.set_index("track_id")["s_hi"].fillna(np.inf)
+        bounded = tracks.set_index("track_id")["s_lo"].notna() | tracks.set_index("track_id")["s_hi"].notna()
+        inside = ((s0 > lo) & (s0 < hi))[bounded]
+        lines.append(f"Coverage: true initial 1/p inside its bounds in {inside.sum()} / {len(inside)} tracks"
+                     + (f" ({100 * inside.mean():.2f} %)" if len(inside) else ""))
+        lines.append("(below 100 % only through what the bounds neglect: scattering lengthens the path)")
+    ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", fontsize=9, color=COLOR_TEXT, transform=ax.transAxes)
+    # (here and not as a footnote, which the constrained layout puts over the x labels of the bottom row)
+    ax.text(0.0, 0.0, "Pulls below: at the last hit the true energy is anywhere between ~1 MeV and the\n"
+            "energy to cross the layer. No Gaussian in q/p describes it, so its q/p pull is not\n"
+            "N(0, 1) (src/kalman/filter.py)", va="bottom", ha="left", fontsize=8, color=COLOR_MUTED,
+            transform=ax.transAxes)
+
+    # Energy at the phantom entrance: fit - true, against the spread of the energy of the beam
+    entrance = [k for k, p in enumerate(metadata["planes"]) if "phantom_start" in p["name"]]
+    ax = fig.add_subplot(grid[0, 1])
+    style_axes(ax)
+    if entrance:
+        e = rows[rows["plane_index"] == entrance[0]]
+        T_true = kinetic_energy(e["q_over_p_true"].to_numpy(), particle)
+        titles = []
+        for st in stages:
+            name, color = STAGES[st]
+            q_p, err = e[f"q_over_p_{st}"].to_numpy(), e[f"q_over_p_{st}_err"].to_numpy()
+            T_fit = kinetic_energy(q_p, particle)
+            p = np.abs(particle.charge / q_p)
+            sigma_T = (p / np.sqrt(p**2 + particle.mass**2)) * p * np.abs(err / q_p)    # beta * sigma_p
+            dT = T_fit - T_true
+            ax.hist(dT, bins=n_bins(len(dT)), histtype="step", color=color, linewidth=1.5, label=name)
+            titles.append(f"{name}: std(fit − true) = {dT.std():.2f} MeV, error of the fit = "
+                          f"{np.sqrt(np.mean(sigma_T**2)):.2f} MeV")
+        beam = metadata["beam"]
+        p0 = beam["p0"]
+        sigma_T_beam = p0 / np.sqrt(p0**2 + particle.mass**2) * beam["sigma_p0"]
+        titles.append(f"Beam alone: {sigma_T_beam:.2f} MeV")
+        ax.set_title("Kinetic energy at the phantom entrance\n" + "\n".join(titles), fontsize=8,
+                     color=COLOR_TEXT, loc="left")
+        ax.set_xlabel("$T_\\mathrm{fit} - T_\\mathrm{true}$ [MeV]", fontsize=10, color=COLOR_TEXT)
+        ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
+        ax.legend(loc="upper right", fontsize=8, frameon=False)
+    else:
+        ax.text(0.5, 0.5, "No plane at the phantom entrance", ha="center", va="center", color=COLOR_MUTED)
+
+    # Pulls against the hits left to the last one: N(0, 1) except at the last hit (0)
+    n_back = int(rows["hits_to_last"].max()) + 1
+    index = np.arange(n_back)
+    series = [(f"q/p, {STAGES[st][0].lower()}", f"pull_q_over_p_{st}", STAGES[st][1], "o") for st in stages]
+    series.append(("x, " + STAGES[stages[-1]][0].lower(), f"pull_x_{stages[-1]}", COLOR_MUTED, "s"))
+    offsets = np.linspace(-0.15, 0.15, len(series))
+    for col, (stat, expected, ylabel) in enumerate((("mean", 0.0, "Mean of the pulls"),
+                                                    ("std", 1.0, "Std of the pulls"))):
+        ax = fig.add_subplot(grid[1, col])
+        style_axes(ax)
+        for (label, column, color, marker), offset in zip(series, offsets):
+            groups = rows.groupby("hits_to_last")[column]
+            n = groups.size().reindex(index, fill_value=0).to_numpy()
+            mean, std = groups.mean().reindex(index).to_numpy(), groups.std().reindex(index).to_numpy()
+            with np.errstate(divide="ignore", invalid="ignore"):
+                err = std / np.sqrt(n) if stat == "mean" else std / np.sqrt(2 * (n - 1))
+            ax.errorbar(index + offset, mean if stat == "mean" else std, yerr=err, fmt=marker,
+                        markersize=MARKER_SIZE, color=color, label=label)
+        ax.axhline(expected, color=COLOR_EXPECTED, linewidth=1.5)
+        ax.set_xticks(index, ["last hit" if k == 0 else f"{k} before" for k in index], fontsize=7)
+        ax.set_xlabel("Hit of the track, counted back from its last one", fontsize=9, color=COLOR_TEXT)
+        ax.set_ylabel(ylabel, fontsize=9, color=COLOR_MUTED)
+        if col == 0:
+            ax.legend(loc="best", fontsize=7, frameon=False)
+    return fig
+
+
+# Page 7: a few tracks chosen at random (seed): fit - true of x and q/p along z, with ±1 sigma bands
 def page_examples(df, metadata, stages, n_tracks, seed):
 
     fig = new_page("A few tracks: fit − true along z, with the ±1σ band of the fit", metadata)
@@ -342,19 +478,22 @@ def plot_fit(fit_dir, out_path=None, n_tracks=N_EXAMPLE_TRACKS, seed=0):
     if fit.empty:
         raise ValueError(f"{fit_dir} has no fitted tracks")
     stages = ["filt", "smooth"] if metadata["smoother"] else ["filt"]
-    df = fit_with_truth(fit, metadata, stages)
+    df = mark_stopping(fit_with_truth(fit, metadata, stages), tracks)
+    main = df[~df["last_of_stop"]]        # see the header
 
-    sample = one_per_track(df, seed)
+    sample = one_per_track(main, seed)
 
     # All the pages are built first: a failure does not leave a partial pdf behind
     pages = [page_pulls(sample, metadata, st) for st in stages]
-    pages += [page_chi2(tracks, metadata), page_resolution(df, metadata, stages),
-              page_pull_planes(df, metadata, stages)]
+    pages += [page_chi2(tracks, metadata), page_resolution(main, metadata, stages),
+              page_pull_planes(main, metadata, stages)]
     if has_correlations(df, stages):
-        pages.append(page_nees(df, sample, metadata, stages))
+        pages.append(page_nees(main, sample, metadata, stages))
     else:
         warnings.warn(f"{fit_dir} does not store the correlations of the covariance (fit made before they "
                       "were added): no NEES page. Redo the fit to get it")
+    if df["stops"].any():
+        pages.append(page_stopping(df, tracks, metadata, stages))
     pages.append(page_examples(df, metadata, stages, n_tracks, seed))
 
     out_path = Path(out_path) if out_path is not None else fit_dir / REPORT_NAME

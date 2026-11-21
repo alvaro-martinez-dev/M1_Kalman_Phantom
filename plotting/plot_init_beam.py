@@ -15,6 +15,7 @@ import numpy as np
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.figure import Figure
+from matplotlib.transforms import Bbox
 from scipy.stats import norm
 
 from src.utils.config_loader import get_constant
@@ -26,6 +27,8 @@ REPORT_NAME = "report.pdf"
 PAGE_SIZE = (11.69, 8.27)   # A4 landscape, in inches
 PANEL_ASPECT = 0.75         # height / width of a histogram
 PULL_ASPECT = 0.25          # height / width of the pulls below it
+PANEL_ROWS = [1.6, 1]       # height ratios of the grid rows of a histogram and its pulls: centers the
+                            # panels in the page (the pulls take the width of the histogram, expected_panel)
 COLORBAR_ASPECT = 20        # height / width of a colorbar
 
 COLOR_DATA = "#2a78d6"
@@ -223,6 +226,21 @@ def stats_title(x, mean, sigma, chi2, ndof):
 # Histogram of a column and its expected counts (ax), with the pulls below (ax_pull)
 # xlabel: label of the x axis (default: the one of the column in VARIABLES)
 # Returns: chi2, ndof of the pulls
+# Axes locator of the pulls of the histogram ax: same x and width as ax (after its aspect), at the top of
+# their own cell of the grid, height PULL_ASPECT times the width (in display units, as set_box_aspect)
+def _below(ax):
+
+    def locate(ax_pull, renderer):
+        ax.apply_aspect()
+        hist = ax.get_position()
+        cell = ax_pull.get_position(original=True)
+        fig_w, fig_h = ax_pull.figure.get_size_inches()
+        height = min(cell.height, PULL_ASPECT * hist.width * fig_w / fig_h)
+        return Bbox.from_bounds(hist.x0, cell.y1 - height, hist.width, height)
+
+    return locate
+
+
 def expected_panel(ax, ax_pull, column, x, edges, expected, xlabel=None):
 
     # 1. Observed counts and pulls
@@ -247,11 +265,12 @@ def expected_panel(ax, ax_pull, column, x, edges, expected, xlabel=None):
     ax_pull.set_xlabel(VARIABLES[column][0] if xlabel is None else xlabel, fontsize=10, color=COLOR_TEXT)
     ax_pull.set_ylabel("Pull", fontsize=9, color=COLOR_MUTED)
 
-    # 4. Fixed proportions, with the pulls right below the histogram
+    # 4. Fixed proportions, with the pulls right below the histogram and as wide as it. The width of the
+    #    pulls is taken from the histogram, not from their own aspect: when the page is short the
+    #    histogram is limited by its height and is narrower than the cell of the pulls
     ax.set_box_aspect(PANEL_ASPECT)
     ax.set_anchor("S")
-    ax_pull.set_box_aspect(PULL_ASPECT)
-    ax_pull.set_anchor("N")
+    ax_pull.set_axes_locator(_below(ax))
 
     style_axes(ax)
     style_axes(ax_pull)
@@ -305,7 +324,7 @@ def add_legend(fig):
 def page_generated(df, metadata, particle):
 
     fig = new_page("Generated parameters", particle, metadata)
-    grid = fig.add_gridspec(2, len(GENERATED), height_ratios=[1.6, 1])  # centers the panels in the page
+    grid = fig.add_gridspec(2, len(GENERATED), height_ratios=PANEL_ROWS)
 
     for i, column in enumerate(GENERATED):
         x = values(df, column)

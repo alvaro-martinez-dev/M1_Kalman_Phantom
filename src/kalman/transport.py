@@ -42,12 +42,15 @@ import warnings
 import numpy as np
 
 from src.geometry.geometry import TOL
-from src.phantom.materials import material_object
-from src.propagator.propagator import State
+from src.phantom.materials import E_MIN_MEV, material_object
+from src.propagator.propagator import State, kinetic_energy, momentum
 from src.propagator.scattering import slice_covariance, theta0_slice
 
 # Default finite-difference steps for (x [mm], tx, q/p [relative])
 FD_STEPS = (1.0e-4, 1.0e-7, 1.0e-6)
+
+# Safety limit of the bisection of reach_limit (it normally stops at s_tol after ~20-40 steps)
+MAX_BISECTIONS = 200
 
 
 class TrackStopped(Exception):
@@ -103,7 +106,9 @@ class Transport:
         return current, F, Q
 
 
-    # Propagates the state x from za to zb (one piece, inside one region) and its Jacobian
+    # Propagates the state x from za to zb (one piece, inside one region) and its Jacobian.
+    # Near the end of the range (e.g. after a range constraint, src/kalman/constraints.py) the state
+    # may reach zb while a perturbed one stops: then the difference is taken on the other side
     def segment(self, x, za, zb):
         new = self._propagate(x, za, zb)
         steps = self.fd_steps.copy()
@@ -112,11 +117,80 @@ class Transport:
         for j in range(3):
             dx = np.zeros(3)
             dx[j] = steps[j]
-            if self.central:
-                F[:, j] = (self._propagate(x + dx, za, zb) - self._propagate(x - dx, za, zb)) / (2 * steps[j])
+            plus = self._try_propagate(x + dx, za, zb)
+            minus = self._try_propagate(x - dx, za, zb) if self.central else None
+            if self.central and plus is not None and minus is not None:
+                F[:, j] = (plus - minus) / (2 * steps[j])
+            elif plus is not None:
+                F[:, j] = (plus - new) / steps[j]
             else:
-                F[:, j] = (self._propagate(x + dx, za, zb) - new) / steps[j]
+                minus = minus if minus is not None else self._propagate(x - dx, za, zb)
+                F[:, j] = (new - minus) / steps[j]
         return new, F
+
+
+    def _try_propagate(self, x, za, zb):
+        # As _propagate, but None if the track stops
+        try:
+            return self._propagate(x, za, zb)
+        except TrackStopped:
+            return None
+
+
+    # True if the mean track that starts at z_a with the state x (its q/p replaced by sign(q) * s)
+    # reaches z_b, i.e. does not stop in the phantom on the way
+    def reaches(self, x, s, z_a, z_b):
+        prop = self.propagator
+        q_p = np.sign(prop.particle.charge) * s
+        result = prop.propagate(State(z=z_a, x=float(x[0]), tx=float(x[1]), q_p=float(q_p)), z_b)
+        return not result.stopped
+
+
+    # True if there is phantom material between z_a and z_b (elsewhere a track cannot stop)
+    def crosses_material(self, z_a, z_b):
+        g = self.propagator.geometry
+        return g.has_phantom and z_a < g.z_end_phantom - TOL and z_b > g.z_start_phantom + TOL
+
+
+    # Boundary s* = 1/p at z_a (see src/kalman/constraints.py): the mean track that starts at z_a with
+    # the position and slope of x reaches z_b if and only if s < s*.
+    # Found by bisection in s with the propagator itself, so the criterion of stopping is exactly the
+    # one of the Monte Carlo (CSDA range, stop margin, layers, path length sqrt(1 + tx^2), field).
+    # s_tol: [1/MeV] precision of s*
+    # Returns: s*, or np.inf if the track cannot stop between z_a and z_b (no material, or it reaches
+    #          z_b even at the lowest energy of the model)
+    def reach_limit(self, x, z_a, z_b, s_tol):
+        prop = self.propagator
+        if z_b - z_a <= TOL or not self.crosses_material(z_a, z_b):
+            return np.inf
+        m = prop.particle.mass
+        s_of_T = lambda T: 1.0 / momentum(T, prop.particle)
+
+        # Bracket: s_stop (stops) > s* >= s_reach (reaches). The slowest particle of the model
+        T_lo = E_MIN_MEV * (1.0 + 1e-6)
+        if self.reaches(x, s_of_T(T_lo), z_a, z_b):
+            return np.inf
+        s_stop = s_of_T(T_lo)
+        T_hi = max(1.0, kinetic_energy(x[2], prop.particle))
+        while not self.reaches(x, s_of_T(T_hi), z_a, z_b):
+            s_stop = s_of_T(T_hi)
+            T_hi *= 2.0
+            if T_hi > 1.0e6 * max(1.0, m):
+                raise RuntimeError(f"The track does not reach z = {z_b} mm from z = {z_a} mm at any energy")
+        s_reach = s_of_T(T_hi)
+
+        # Bisection (geometric mean: s spans decades)
+        for _ in range(MAX_BISECTIONS):
+            if s_stop - s_reach <= s_tol:
+                break
+            s_mid = np.sqrt(s_stop * s_reach)
+            if not s_reach < s_mid < s_stop:     # floating-point resolution reached
+                break
+            if self.reaches(x, s_mid, z_a, z_b):
+                s_reach = s_mid
+            else:
+                s_stop = s_mid
+        return 0.5 * (s_stop + s_reach)
 
 
     def _propagate(self, x, za, zb):

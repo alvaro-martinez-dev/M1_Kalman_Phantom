@@ -95,11 +95,15 @@ def propagator_hash(prop_cfg):
     return short_hash(propagator_parameters(prop_cfg))
 
 
-# Options of the Kalman fit that change its output
-def kalman_parameters(smoother, central_differences, fd_steps):
-    return {"smoother": bool(smoother), "central_differences": bool(central_differences),
-            "fd_steps": canonical(list(fd_steps))}
+# Options of the Kalman fit that change its output. range_constraints only enters when true, so the
+# fits made before the option existed (unconstrained) keep their hash
+def kalman_parameters(smoother, central_differences, fd_steps, range_constraints=False):
+    params = {"smoother": bool(smoother), "central_differences": bool(central_differences),
+              "fd_steps": canonical(list(fd_steps))}
+    if range_constraints:
+        params["range_constraints"] = True
+    return params
 
 
-def kalman_hash(smoother, central_differences, fd_steps):
-    return short_hash(kalman_parameters(smoother, central_differences, fd_steps))
+def kalman_hash(smoother, central_differences, fd_steps, range_constraints=False):
+    return short_hash(kalman_parameters(smoother, central_differences, fd_steps, range_constraints))
