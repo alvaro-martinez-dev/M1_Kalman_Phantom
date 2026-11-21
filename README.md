@@ -438,7 +438,7 @@ the result gives another name, so two datasets of different systems never overwr
 |---|---|---|
 | `Beam<h>` | beam block (particle, x0, theta0, p0 and their sigmas) + `n_events` + `seed` | `init_beam/<beam>_n<n>_seed<s>_Beam<h>` |
 | `Lay<h>` | geometry and detector planes (positions, thicknesses, materials, number of planes) | `geometry/layout_Lay<h>_...` |
-| `Magn<h>` | what changes the field in the `magnet` block, + the extent of the system if interpolated (`Magnoff` without magnet) | `field/field_Magn<h>_...` |
+| `Magn<h>` | what changes the field in the `magnet` block, + the extent of the system if interpolated (only Biot-Savart is: hard edge is always exact) (`Magnoff` without magnet) | `field/field_Magn<h>_...` |
 | `Prop<h>` | physics options of the propagator: `step`, `adaptive`, `tolerances` (if adaptive), scattering `max_slice` | (only in the propagation) |
 | `Kal<h>` | options of the fit: `smoother`, `central_differences`, finite-difference steps, `range_constraints` (only when true, so older fits keep their hash) | (only in the fit) |
 

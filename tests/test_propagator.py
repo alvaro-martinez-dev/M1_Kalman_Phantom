@@ -308,19 +308,26 @@ def test_make_propagator_rejects_a_bad_step():
 
 def test_field_map_covers_the_whole_system():
     """build_field: the map spans [0, z_end_system] in z and the gap in x, so it never ends inside
-    the system (no warning, no artificial cut of the fringe field), whatever the geometry."""
+    the system (no warning, no artificial cut of the fringe field), whatever the geometry.
+    Only the Biot-Savart field is tabulated (hard_edge is used as it is, see test_field.py); a coarse
+    grid and few filaments keep it fast, the extent of the map does not depend on them."""
     import warnings
-    from src.field import build_field
+    from src.field import InterpolatedField, build_field
     from src.utils.config_loader import load_config, make_geometry, make_propagator
 
     cfg = load_config("config")
-    cfg["geometry"]["magnet"]["model"] = "hard_edge"
+    magnet = cfg["geometry"]["magnet"]
+    magnet["model"] = "biot_savart"
+    magnet["biot_savart"]["n_filaments"] = 4
+    magnet["interpolation"].update(enabled=True, dx=5.0, dz=5.0)
     geometry = make_geometry(cfg["geometry"])
     field = build_field(cfg, geometry)
+    assert isinstance(field, InterpolatedField)
     z_lo, z_hi = field.z_support()
     assert z_lo <= 0.0 and z_hi >= geometry.z_end_system
     x_nodes = field._xs
-    assert x_nodes[-1] >= cfg["geometry"]["magnet"]["x_half_gap"] and x_nodes[-1] < cfg["geometry"]["magnet"]["x_half_gap"] + 3.0
+    # |x| <= x_half_gap + 2 dx (build_field), up to one cell of rounding of the grid
+    assert magnet["x_half_gap"] <= x_nodes[-1] <= magnet["x_half_gap"] + 3 * magnet["interpolation"]["dx"]
     with warnings.catch_warnings():
         warnings.simplefilter("error")
         make_propagator(cfg, geometry, field, PROTON)

@@ -49,6 +49,12 @@ def test_magnet_hash_ignores_what_does_not_change_the_field():
     assert magnet_hash(other, 900.0) == magnet_hash(hard, 900.0)
     assert magnet_hash(hard, 1000.0) == magnet_hash(hard, 900.0)   # no grid: the extent does not matter
 
+    # hard_edge is never interpolated (build_field): an enabled interpolation block changes nothing
+    hard_on = copy.deepcopy(hard)
+    hard_on["interpolation"] = {"enabled": True, "dx": 2.0, "dz": 1.0}
+    assert magnet_hash(hard_on, 900.0) == magnet_hash(hard, 900.0)
+    assert magnet_hash(hard_on, 1000.0) == magnet_hash(hard, 900.0)
+
     assert magnet_hash({**MAGNET, "enabled": False}, 900.0) == "off"
 
 

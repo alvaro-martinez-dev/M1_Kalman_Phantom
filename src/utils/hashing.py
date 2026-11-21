@@ -55,8 +55,8 @@ def beam_hash(beam_cfg, n_events, seed):
 
 # magnet_cfg: geometry.magnet block of the yaml; z_end_system: [mm] end of the system (Geometry)
 # Only what changes the field the propagator sees (src.field.build_field): the keys of the other
-# model and the interpolation grid when it is disabled are left out. The extent of the system sets
-# the interpolation grid, so it is included only if the field is interpolated.
+# model and the interpolation grid when it is not used (disabled, or hard_edge) are left out. The
+# extent of the system sets the interpolation grid, so it is included only if the field is interpolated.
 # Returns: dict, or None if the magnet is disabled (no field)
 def magnet_parameters(magnet_cfg, z_end_system):
     if not magnet_cfg.get("enabled", True):
@@ -65,8 +65,11 @@ def magnet_parameters(magnet_cfg, z_end_system):
     if magnet_cfg["model"] == "biot_savart":
         params["y_height"] = canonical(magnet_cfg["y_height"])
         params["biot_savart"] = canonical(magnet_cfg["biot_savart"])
+    # Only the Biot-Savart field is tabulated: hard_edge is always evaluated exactly (build_field) and
+    # ignores the interpolation block. Before that change hard_edge was interpolated too, so those
+    # datasets (with interpolation) keep a hash that the exact field never gets
     interpolation = magnet_cfg.get("interpolation", {})
-    if interpolation.get("enabled", False):
+    if magnet_cfg["model"] == "biot_savart" and interpolation.get("enabled", False):
         params["interpolation"] = {"dx": canonical(interpolation["dx"]), "dz": canonical(interpolation["dz"])}
         params["z_end_system"] = canonical(z_end_system)
     return params
