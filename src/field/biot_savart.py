@@ -72,6 +72,11 @@ class BiotSavartField(MagneticField):
         self.z_int_halfrange = z_int_halfrange
         self.z_int_step = z_int_step
 
+        if n_filaments % 2 != 0:
+            raise ValueError(
+                f"n_filaments must be even, got {n_filaments}: with an odd number a filament "
+                "lies on y = 0, the plane where the field map is tabulated, and the field "
+                "diverges as 1/r there")
         self._loops = self._build_loops()   # closed loops: div B = 0 by construction
 
         # Linearity in the current: compute the shape with unit current, then rescale
