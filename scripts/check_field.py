@@ -216,7 +216,7 @@ def main():
         "results": results,
         "magnet": magnet,
     }
-    with open(out_dir / "metadata.yml", "w") as f:
+    with open(out_dir / "metadata.yml", "w", encoding="utf-8") as f:
         yaml.safe_dump(metadata, f, sort_keys=False)
 
     # 6. Plot

@@ -61,9 +61,9 @@ PROTON     = Particle("p",    938.27208816, +1)
 ANTIPROTON = Particle("pbar", 938.27208816, -1)
 
 # --- Nucleus (iones de terapia) ---
-DEUTERON = Particle("d",     1875.61294, +1)
-ALPHA    = Particle("alpha", 3727.37941, +2)
-CARBON12 = Particle("C12",   11174.862,  +6)
+#DEUTERON = Particle("d",     1875.61294, +1)
+#ALPHA    = Particle("alpha", 3727.37941, +2)
+#CARBON12 = Particle("C12",   11174.862,  +6)
 
 # ----------------------------------------------
 # ------------ Two-body decay channels ---------

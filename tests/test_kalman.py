@@ -53,6 +53,20 @@ def test_magnet_jacobian_forward_and_central_differences_agree():
     assert F_cen[2] == pytest.approx([0.0, 0.0, 1.0], abs=1e-9)    # |p| constant in vacuum
 
 
+def test_transport_uses_fixed_steps_even_if_the_monte_carlo_was_adaptive():
+    prop = phantom_propagator()
+    prop.adaptive = True
+    with pytest.warns(UserWarning, match="fixed steps"):
+        transport = Transport(prop)
+    assert transport.propagator.adaptive is False
+    assert prop.adaptive is True                     # the Monte Carlo propagator is not modified
+    # the mean track agrees with the adaptive one well below any detector resolution
+    x0 = np.array([0.0, 0.01, Q_P])
+    x_pred, _, _ = transport.predict(x0, 0.0, 200.0)
+    final = prop.propagate(State(z=0.0, x=0.0, tx=0.01, q_p=Q_P), 200.0).final
+    assert x_pred == pytest.approx([final.x, final.tx, final.q_p], rel=1e-6, abs=1e-6)
+
+
 def test_phantom_energy_loss_enters_the_jacobian():
     transport = Transport(phantom_propagator())
     x_pred, F, _ = transport.predict(np.array([0.0, 0.0, Q_P]), 0.0, 200.0)

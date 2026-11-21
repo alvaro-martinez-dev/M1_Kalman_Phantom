@@ -49,7 +49,7 @@ def load_layout(path):
 
     # keep_default_na: the empty names/materials stay "" instead of NaN
     table = pd.read_csv(path / "layout.csv", keep_default_na=False)
-    with open(path / "metadata.yml") as f:
+    with open(path / "metadata.yml", encoding="utf-8") as f:
         metadata = yaml.safe_load(f)
 
     return table, metadata

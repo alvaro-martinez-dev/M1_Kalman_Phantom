@@ -99,7 +99,7 @@ def main():
         "layout_parameters": parameters,   # what the hash is computed from
         "geometry": geometry_cfg,
     }
-    with open(out_dir / "metadata.yml", "w") as f:
+    with open(out_dir / "metadata.yml", "w", encoding="utf-8") as f:
         yaml.safe_dump(metadata, f, sort_keys=False)
 
     print(table.to_string(index=False))

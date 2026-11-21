@@ -70,7 +70,7 @@ def save_dataset(df, out_dir, params, overwrite=False, tables=None):
         "n_rows": len(df),
         **params,
     }
-    with open(out_dir / "metadata.yml", "w") as f:
+    with open(out_dir / "metadata.yml", "w", encoding="utf-8") as f:
         yaml.safe_dump(metadata, f, sort_keys=False)
 
     return out_dir
@@ -89,7 +89,7 @@ def load_dataset(path):
 
     path = dataset_path(path)
     df = pd.read_parquet(path / "tracks.parquet")
-    with open(path / "metadata.yml") as f:
+    with open(path / "metadata.yml", encoding="utf-8") as f:
         metadata = yaml.safe_load(f)
 
     return df, metadata

@@ -20,7 +20,24 @@
 # mean q/p and tx of the slice, as Propagator.scatter does. No energy-loss straggling (q/p is not
 # kicked in the Monte Carlo either), so Q has no q/p terms.
 #
+# Fixed RK steps, always. F comes from finite differences: (propagate(x + dx) - propagate(x)) / dx.
+# This is only smooth if the nominal and the perturbed propagations take EXACTLY the same RK steps.
+# With adaptive steps the controller may accept/reject steps differently for the perturbed state, and
+# each propagation is then off by up to the tolerance; divided by the tiny dx this is a large error
+# in F (e.g. tol_x / dtx = 1e-6 mm / 1e-7 = 10 mm in dx/dtx, which is a few hundred mm). So the
+# Transport uses its own copy of the propagator with adaptive=False and the same step, whatever the
+# Monte Carlo used. This is not a model mismatch: the RK step is a numerical choice, not physics.
+# Fixed and adaptive integrations of the same equations agree within the tolerance (~1e-6 mm), far
+# below the resolution and the scattering. The physics (geometry, field, energy loss, scattering
+# slices) is shared with the Monte Carlo. Real fitters (GENFIT, ACTS) keep adaptive steps and transport
+# F analytically through the same RK stages instead; for this toy model fixed steps are enough.
+# With adaptive=True in the Monte Carlo, `step` is only the MAXIMUM step: check that the fixed step is
+# converged (results with step and step/2 must agree well below sigma_x). A warning reminds it.
+#
 # Units: mm, MeV; q in e, q/p in e/MeV.
+
+import copy
+import warnings
 
 import numpy as np
 
@@ -40,14 +57,20 @@ class TrackStopped(Exception):
 
 class Transport:
 
-    # propagator: Propagator of the Monte Carlo (same geometry, field, steps and max_slice).
+    # propagator: Propagator of the Monte Carlo (same geometry, field, step and max_slice). It is not
+    #             modified: the Transport keeps a copy with fixed steps (see the header).
     #             Without max_slice there are no slices: Q = 0
     # fd_steps: finite-difference steps for (x [mm], tx, q/p [relative to |q/p|])
     # central: central differences (2 extra propagations per variable) instead of forward ones (1)
     def __init__(self, propagator, fd_steps=FD_STEPS, central=False):
         if propagator.particle.charge == 0:
             raise ValueError(f"{propagator.particle.name} is neutral: it leaves no hits to fit")
-        self.propagator = propagator
+        if propagator.adaptive:
+            warnings.warn(f"The Monte Carlo used adaptive steps; the Kalman transport uses fixed steps of "
+                          f"{propagator.step} mm (its maximum step) for smooth Jacobians. Check that this "
+                          "step is converged (see src/kalman/transport.py)", stacklevel=2)
+        self.propagator = copy.copy(propagator)    # shallow: field, geometry and slices are shared
+        self.propagator.adaptive = False
         self.fd_steps = np.asarray(fd_steps, dtype=float)
         self.central = central
 

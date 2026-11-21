@@ -145,8 +145,9 @@ def main():
     }
     out_dir = save_dataset(fit_tracks, DATA_DIR / "fit" / name, params,
                            overwrite=args.overwrite, tables={"fit": fit})
+    chi2_text = "n/a" if params["chi2_ndf_mean"] is None else f"{params['chi2_ndf_mean']:.3f}"
     print(f"Saved the fit of {len(fit_tracks)} tracks ({params['n_ok']} ok, {params['n_stopped']} stopped, "
-          f"mean chi2/ndf = {params['chi2_ndf_mean']:.3f}) in {elapsed:.0f} s to {out_dir}")
+          f"mean chi2/ndf = {chi2_text}) in {elapsed:.0f} s to {out_dir}")
 
     # 5. Report (the dataset is already saved: a failure here does not lose it)
     if cfg["run"].get("plot", False) if args.plot is None else args.plot:

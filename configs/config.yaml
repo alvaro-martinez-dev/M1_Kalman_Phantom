@@ -41,14 +41,14 @@ beams:
     p0: 5000.0
     sigma_p0: 50.0
 
-  pion:
-    particle: PI_PLUS
+  antiproton:
+    particle: ANTIPROTON
     x0: 0.0
     sigma_x0: 1.0
     theta0: 0.0
     sigma_theta0: 1.0e-3
-    p0: 200.0
-    sigma_p0: 2.0
+    p0: 700.0
+    sigma_p0: 3.0
 
 # -------------------------------------------------------------------------------------
 # ------------------ Decays -----------------------------------------------------------
@@ -59,11 +59,6 @@ decays:
     channel: JPSI_MUMU                    # DecayChannel in src/constants.py
     input: init_beam/jpsi_n100000_seed42_Beame38100  # parent dataset, relative to data/
     seed: 43                              # must differ from the seed of the parent dataset
-
-  pion_munu:
-    channel: PI_PLUS_MUNU
-    input: init_beam/pion_n100000_seed42
-    seed: 44
 
 # -----------------------------------------------------------------------------------
 # ----------------- Geometry --------------------------------------------------------

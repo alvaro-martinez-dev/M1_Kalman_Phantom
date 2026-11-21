@@ -28,6 +28,12 @@ MEV_PER_CM_TO_MM = 0.1  # 1 MeV/cm = 0.1 MeV/mm
 E_MIN_MEV = 0.1
 
 
+class BelowEnergyRange(ValueError):
+    # Raised by bethe_bloch for a kinetic energy below E_MIN_MEV. The propagator catches only this
+    # one (the particle is at the end of its range), so any other ValueError is not hidden
+    pass
+
+
 def beta_gamma(T_MeV, particle: Particle = PROTON):
     """
     Return (beta, gamma) for a particle of *kinetic* energy T_MeV (MeV).
@@ -104,7 +110,7 @@ def bethe_bloch(T_MeV, material: Material, particle: Particle = PROTON):
             "electrons lose energy mainly by bremsstrahlung"
         )
     if np.any(np.asarray(T_MeV) < E_MIN_MEV):
-        raise ValueError(
+        raise BelowEnergyRange(
             f"Kinetic energy below E_MIN = {E_MIN_MEV} MeV: "
             "Bethe-Bloch not valid"
         )

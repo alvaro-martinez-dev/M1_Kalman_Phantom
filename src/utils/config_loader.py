@@ -28,7 +28,7 @@ def load_config(name):
     if path.suffix not in (".yaml", ".yml"):
         path = CONFIG_DIR / f"{name}.yaml"
 
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
 
 

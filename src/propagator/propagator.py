@@ -36,7 +36,7 @@ import numpy as np
 
 from src.constants import PROTON, Particle
 from src.geometry.geometry import Geometry, TOL
-from src.phantom.materials import E_MIN_MEV, material_object, range_csda, range_csda_fast
+from src.phantom.materials import BelowEnergyRange, E_MIN_MEV, material_object, range_csda, range_csda_fast
 from src.propagator.equations import eom_magnet, eom_phantom_field, propagate_free_space
 from src.propagator.rk4 import rk4, rkn4
 from src.propagator.scattering import phantom_slices, sample_kick, theta0_slice
@@ -256,10 +256,10 @@ class Propagator:
         try:
             if self.adaptive:
                 tol = np.array([self.tol_x, self.tol_tx, self.tol_qp_rel * abs(state.q_p)])
-                _, y = rk4(fun, state.z, z_b, y0, self.step, adaptative=True, tol=tol)
+                _, y = rk4(fun, state.z, z_b, y0, self.step, adaptative=True, tol=tol, h_max=self.step)
             else:
                 _, y = rk4(fun, state.z, z_b, y0, self.step)
-        except ValueError:
+        except BelowEnergyRange:
             # bethe_bloch refused an energy below E_MIN inside an RK stage: the particle is at the
             # end of its range, so it is stopped where the CSDA range says
             return self.stopped_at(state, residual / path_factor), True
