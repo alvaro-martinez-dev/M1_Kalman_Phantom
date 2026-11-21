@@ -19,11 +19,15 @@ def build_field(cfg: dict, geometry) -> MagneticField:
         geometry: Geometry built from cfg (make_geometry), for the extent of the field map.
 
     If the magnet is disabled (magnet.enabled: false) there is no field: NoField.
-    If interpolation is enabled, the source field is tabulated on a grid
-    and the returned object is an InterpolatedField. The grid covers the whole system in z,
-    [0, z_end_system], so the map never ends inside it (no artificial cut of the fringe field),
-    and the magnet gap in x, |x| <= x_half_gap + 2 dx: the propagator takes the field as zero
-    outside the gap, and the 2 extra cells keep the spline accurate at the plates.
+    The hard-edge model is returned as it is: it is exact and cheap to evaluate, while a
+    spline on a step function only adds Gibbs oscillations. The interpolation block is
+    not read for it.
+    The Biot-Savart source is expensive, so if magnet.interpolation.enabled it is tabulated
+    on a grid and the returned object is an InterpolatedField. The grid covers the whole
+    system in z, [0, z_end_system], so the map never ends inside it (no artificial cut of
+    the fringe field), and the magnet gap in x, |x| <= x_half_gap + 2 dx: the propagator
+    takes the field as zero outside the gap, and the 2 extra cells keep the spline accurate
+    at the plates.
     """
     from src.utils.config_loader import is_enabled   # local: config_loader imports src.geometry
 
@@ -32,20 +36,20 @@ def build_field(cfg: dict, geometry) -> MagneticField:
         return NoField()
 
     if m["model"] == "hard_edge":
-        src = HardEdgeField(m["B0"], m["z_start"], m["z_length"], m["x_half_gap"])
-    elif m["model"] == "biot_savart":
+        return HardEdgeField(m["B0"], m["z_start"], m["z_length"], m["x_half_gap"])
+
+    if m["model"] == "biot_savart":
         src = BiotSavartField(m["B0"], m["z_start"], m["z_length"],
                               m["x_half_gap"], m["y_height"],
                               m["biot_savart"]["n_filaments"])
-    else:
-        raise ValueError(f"Unknown field model: {m['model']}")
-
-    ip = m["interpolation"]
-    if ip["enabled"]:
+        ip = m["interpolation"]
+        if not ip["enabled"]:
+            return src
         return InterpolatedField.from_field(
             src, x_max=m["x_half_gap"] + 2 * ip["dx"], z_min=0.0, z_max=geometry.z_end_system,
             dx=ip["dx"], dz=ip["dz"])
-    return src
+
+    raise ValueError(f"Unknown field model: {m['model']}")
 
 
 __all__ = ["MagneticField", "HardEdgeField", "BiotSavartField",

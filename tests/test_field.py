@@ -117,7 +117,7 @@ class TestBiotSavartField:
     def test_axis_integral_independent_of_geometry(self):
         """The bending power does not depend on y_height or n_filaments."""
         z = np.arange(Z_START - 2400.0, Z_END + 2400.0 + 0.1, 0.5)
-        for y_height, n in [(100.0, 21), (400.0, 81)]:
+        for y_height, n in [(100.0, 20), (400.0, 80)]:
             f = self.make(B0=0.8, n=n, y_height=y_height)
             assert np.trapezoid(f.By(0.0, z), z) == pytest.approx(0.8 * Z_LENGTH, rel=1e-4)
 
@@ -130,7 +130,7 @@ class TestBiotSavartField:
     def test_invalid_range_raises(self):
         with pytest.raises(ValueError):
             # zero-width magnet and zero range give a null integral
-            BiotSavartField(1.0, Z_START, 0.0, X_HALF_GAP, Y_HEIGHT, 5,
+            BiotSavartField(1.0, Z_START, 0.0, X_HALF_GAP, Y_HEIGHT, 4,
                             z_int_halfrange=0.0)
 
     def test_linear_in_B0(self):
@@ -319,7 +319,7 @@ class TestBiotSavartMaxwell:
 
     @staticmethod
     def make():
-        return BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 21)
+        return BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 20)
 
     def test_symmetries_in_y(self):
         f = self.make()
@@ -358,7 +358,7 @@ class TestBiotSavartMaxwell:
         Each filament carries unit current and the filaments are spaced by `pitch`
         in y, so the surface current density is K = 1 / pitch.
         """
-        n, y_height = 801, 4000.0
+        n, y_height = 800, 4000.0
         pitch = y_height / (n - 1)
         f = BiotSavartField(1.0, z_start=-2000.0, z_length=4000.0, x_half_gap=50.0,
                             y_height=y_height, n_filaments=n,
@@ -368,7 +368,7 @@ class TestBiotSavartMaxwell:
 class TestPlateJump:
     """By jumps by mu0 K across each current plate (Ampere), K = 1 / pitch in raw units."""
 
-    N, Y_H = 81, 400.0     # pitch = 5 mm
+    N, Y_H = 80, 400.0     # pitch = 5 mm
 
     @classmethod
     def jump(cls, f, delta, side=+1):
@@ -399,3 +399,47 @@ class TestPlateJump:
         f = self.make()
         assert self.jump(f, 10.0, side=+1) == pytest.approx(self.jump(f, 10.0, side=-1),
                                                             rel=1e-10)
+class TestBuildFieldModels:
+    """build_field picks the right class for each model / interpolation setting."""
+
+    @staticmethod
+    def cfg_geometry(model, interpolation_enabled):
+        import copy
+        from src.utils.config_loader import load_config, make_geometry
+        cfg = copy.deepcopy(load_config("config"))
+        m = cfg["geometry"]["magnet"]
+        m["enabled"] = True
+        m["model"] = model
+        m["interpolation"]["enabled"] = interpolation_enabled
+        return cfg, make_geometry(cfg["geometry"])
+
+    def test_hard_edge_is_never_interpolated(self):
+        from src.field import build_field
+        cfg, geometry = self.cfg_geometry("hard_edge", True)
+        assert type(build_field(cfg, geometry)) is HardEdgeField
+
+    def test_biot_savart_without_interpolation_is_the_source(self):
+        from src.field import build_field
+        cfg, geometry = self.cfg_geometry("biot_savart", False)
+        assert type(build_field(cfg, geometry)) is BiotSavartField
+
+    def test_unknown_model_raises(self):
+        from src.field import build_field
+        cfg, geometry = self.cfg_geometry("hard_edge", False)
+        cfg["geometry"]["magnet"]["model"] = "unknown"
+        with pytest.raises(ValueError):
+            build_field(cfg, geometry)
+
+def test_odd_n_filaments_raises():
+    with pytest.raises(ValueError):
+        BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, Y_HEIGHT, 21)
+def test_interpolation_error_in_x_inside_proton_region():
+    """Map vs source for |x| <= 25 mm (5 filament pitches from the plates), magnet interior."""
+    src = BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, 400.0, 80,
+                          z_int_halfrange=10.0, z_int_step=5.0)   # cheap normalisation
+    f = InterpolatedField.from_field(src, x_max=X_HALF_GAP + 2.0, z_min=Z_START - 50.0,
+                                     z_max=Z_END + 50.0, dx=1.0, dz=0.5)
+    rng = np.random.default_rng(0)
+    x = rng.uniform(-25.0, 25.0, 500)
+    z = rng.uniform(Z_START + 20.0, Z_END - 20.0, 500)
+    assert np.max(np.abs(f.By(x, z) - src.By(x, z))) < 1e-6
