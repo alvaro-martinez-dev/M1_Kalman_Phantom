@@ -85,3 +85,12 @@ def test_layout_name_starts_with_its_hash():
                                inside_phantom=True, n_inside_magnet=1)
     name, _, hash_ = layout_name(g, detectors, 50.0)
     assert name.startswith(f"layout_Lay{hash_}_") and "_2Layers_1PhDet_1MagDet" in name
+    # x_half_gap comes raw from the yaml in generate_propagation: 50 and 50.0 are the same layout
+    assert layout_name(g, detectors, 50)[2] == hash_
+    assert layout_name(g, detectors, 51.0)[2] != hash_
+
+    # without magnet x_half_gap is not part of the layout, whatever is passed
+    g_no_magnet = Geometry(z_start_phantom=50.0, phantom_layers=[{"material": "WATER", "thickness": 50.0}],
+                           spacing_after_last=100.0)
+    d_no_magnet = DetectorPlanes(g_no_magnet, 1, 1, 1, True, 1)
+    assert layout_name(g_no_magnet, d_no_magnet, None)[2] == layout_name(g_no_magnet, d_no_magnet, 50.0)[2]

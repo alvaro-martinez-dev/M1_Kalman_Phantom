@@ -423,6 +423,14 @@ class TestBuildFieldModels:
         cfg, geometry = self.cfg_geometry("biot_savart", False)
         assert type(build_field(cfg, geometry)) is BiotSavartField
 
+    @pytest.mark.parametrize("model, enabled, expected", [("hard_edge", True, False), ("hard_edge", False, False),
+                                                          ("biot_savart", True, True), ("biot_savart", False, False)])
+    def test_check_field_calls_interpolated_what_build_field_interpolates(self, model, enabled, expected):
+        # scripts/check_field.py names the folder _interp and draws the source only for a tabulated field
+        from scripts.check_field import field_is_interpolated
+        cfg, _ = self.cfg_geometry(model, enabled)
+        assert field_is_interpolated(cfg["geometry"]["magnet"]) is expected
+
     def test_unknown_model_raises(self):
         from src.field import build_field
         cfg, geometry = self.cfg_geometry("hard_edge", False)

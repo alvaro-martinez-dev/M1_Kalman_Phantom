@@ -11,7 +11,8 @@
 #   it left a hit on the plane at z_k          ->  it had enough energy to get there
 #   it left no hit on the plane after its last ->  it had not enough energy to get there
 # (100 % efficient planes: a missing hit means that the particle stopped). Each statement bounds
-# s = sign(q) q/p = 1/p (> 0 for both signs of the charge; a larger s is a slower particle):
+# s = sign(q) q/p = |q|/p (1/p for unit charge; > 0 for both signs of the charge; a larger s is a
+# slower particle):
 #   reaches z_b from z_a          <=>  s < s*(z_a, z_b)
 #   does not reach z_b from z_a   <=>  s > s*(z_a, z_b)
 # The filter (src/kalman/filter.py) applies them to the prior, z_a = z0, where the Gaussian is accurate.
@@ -26,7 +27,7 @@
 #   mu' = mu + g (q/p' - q/p),     C' = C + g g^T (v' - C[2, 2])
 # The constraint is not a measurement with a residual: it does not add to chi2 nor to ndf.
 #
-# Units: q/p and s in e/MeV and 1/MeV.
+# Units: q/p and s in e/MeV.
 
 import numpy as np
 from scipy.stats import truncnorm

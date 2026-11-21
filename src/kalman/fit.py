@@ -25,14 +25,14 @@
 #       diagonal of the covariance) and its correlations corr_x_tx_<stage>, corr_x_q_over_p_<stage>,
 #       corr_tx_q_over_p_<stage>; res_pred, res_pred_err, chi2_k (predicted residuals);
 #       res_smooth, res_smooth_err (smoothed residuals). The smooth columns only if smoother=True;
-#       s_reach: safety-net bound s < s_reach [1/MeV] on s = 1/p at the previous hit, applied only if
+#       s_reach: safety-net bound s < s_reach [e/MeV] on s = |q|/p at the previous hit, applied only if
 #       the mean track would not reach this hit (NaN if not applied)
 #   fit_tracks: one row per track: track_id, input_row, event_id, n_hits, status, chi2, ndf,
 #       range_end, s_hi, s_lo, n_reach
 #       status: "ok", or "stopped" if the predicted track stops before one of its hits (no fit rows)
 #       range_end: the track has no hit on the plane after its last hit, i.e. it stopped (planes are
 #                  100 % efficient). It is detector information, not MC truth
-#       s_hi, s_lo: bounds s_lo < s0 < s_hi [1/MeV] on s = 1/p of the prior: it reached its last hit,
+#       s_hi, s_lo: bounds s_lo < s0 < s_hi [e/MeV] on s = |q|/p of the prior: it reached its last hit,
 #                   it did not reach the next plane (NaN if not applied, e.g. irrelevant)
 #       n_reach: number of safety-net bounds applied
 #

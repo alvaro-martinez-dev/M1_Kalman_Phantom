@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.constants import PROTON, WATER
+from src.constants import PROTON, WATER, Particle
 from src.field import NoField
 from src.geometry.geometry import Geometry
 from src.kalman.constraints import truncate_qp
@@ -79,6 +79,21 @@ def test_reach_limit_is_the_csda_range(tx):
     T_star = kinetic_energy(s_star, PROTON)      # s = q/p for a proton
     expected = 40.0 * np.sqrt(1.0 + tx**2) + _stop_margin(WATER, PROTON)
     assert range_csda(T_star, WATER) == pytest.approx(expected, rel=1e-4)
+
+
+def test_reach_limit_with_charge_two_is_the_csda_range():
+    # s = |q|/p (= sign(q) q/p, as the filter uses it), not 1/p: for an alpha the boundary must still be
+    # the energy whose CSDA range is the path, which needs the bracket of the bisection in |q|/p
+    alpha = Particle("alpha", 3727.37941, +2)
+    g = Geometry(z_start_phantom=50.0, phantom_layers=[{"material": "WATER", "thickness": 100.0}],
+                 spacing_after_last=100.0)
+    transport = Transport(Propagator(g, NoField(), np.inf, particle=alpha, step=1.0))
+    x = np.array([0.0, 0.0, alpha.charge / momentum(300.0, alpha)])
+    s_star = transport.reach_limit(x, 50.0, 60.0, s_tol=1e-13)
+    assert np.isfinite(s_star)
+    T_star = kinetic_energy(s_star, alpha)        # q/p = s for a positive charge
+    expected = 10.0 + _stop_margin(WATER, alpha)
+    assert range_csda(T_star, WATER, alpha) == pytest.approx(expected, rel=1e-4)
 
 
 def test_reach_limit_without_material_is_infinite():

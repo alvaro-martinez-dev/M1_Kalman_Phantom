@@ -137,7 +137,8 @@ class Transport:
             return None
 
 
-    # True if the mean track that starts at z_a with the state x (its q/p replaced by sign(q) * s)
+    # True if the mean track that starts at z_a with the state x (its q/p replaced by sign(q) * s,
+    # s = |q|/p)
     # reaches z_b, i.e. does not stop in the phantom on the way
     def reaches(self, x, s, z_a, z_b):
         prop = self.propagator
@@ -152,11 +153,11 @@ class Transport:
         return g.has_phantom and z_a < g.z_end_phantom - TOL and z_b > g.z_start_phantom + TOL
 
 
-    # Boundary s* = 1/p at z_a (see src/kalman/constraints.py): the mean track that starts at z_a with
+    # Boundary s* = |q|/p at z_a (see src/kalman/constraints.py): the mean track that starts at z_a with
     # the position and slope of x reaches z_b if and only if s < s*.
     # Found by bisection in s with the propagator itself, so the criterion of stopping is exactly the
     # one of the Monte Carlo (CSDA range, stop margin, layers, path length sqrt(1 + tx^2), field).
-    # s_tol: [1/MeV] precision of s*
+    # s_tol: [e/MeV] precision of s*
     # Returns: s*, or np.inf if the track cannot stop between z_a and z_b (no material, or it reaches
     #          z_b even at the lowest energy of the model)
     def reach_limit(self, x, z_a, z_b, s_tol):
@@ -164,7 +165,7 @@ class Transport:
         if z_b - z_a <= TOL or not self.crosses_material(z_a, z_b):
             return np.inf
         m = prop.particle.mass
-        s_of_T = lambda T: 1.0 / momentum(T, prop.particle)
+        s_of_T = lambda T: abs(prop.particle.charge) / momentum(T, prop.particle)   # s = |q|/p, as reaches
 
         # Bracket: s_stop (stops) > s* >= s_reach (reaches). The slowest particle of the model
         T_lo = E_MIN_MEV * (1.0 + 1e-6)

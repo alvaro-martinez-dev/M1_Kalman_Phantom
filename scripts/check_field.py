@@ -6,8 +6,9 @@
 #   field.pdf:    1. By(z) along the whole system, at x = 0 and x = x_offset, with the magnet edges
 #                    and the uniformity window around the magnet centre
 #                 2. By(x) across the gap at the magnet centre, with the plates at +-x_half_gap
-#                 If the interpolation is enabled, the source field (no interpolation) is drawn
-#                 dashed on top, to see the interpolation error by eye
+#                 If the field is interpolated (Biot-Savart with interpolation enabled; hard_edge is
+#                 always exact), the source field (no interpolation) is drawn dashed on top, to see
+#                 the interpolation error by eye
 #   metadata.yml: date, git commit, the magnet block used, the plot ranges and the results
 #                 (By at the centre, uniformity, field integral)
 # with hash = magnet_hash of src/utils/hashing.py: deterministic hash of what changes the field in
@@ -99,6 +100,14 @@ def plot_field(path, profiles, source, magnet, x_offset, window, title):
     return path
 
 
+# magnet: geometry.magnet block of the yaml (enabled)
+# Returns: True if build_field tabulates the field (Biot-Savart with interpolation.enabled)
+def field_is_interpolated(magnet):
+
+    return (get_key(magnet, "model", "geometry.magnet") == "biot_savart"
+            and bool(get_key(magnet, "interpolation.enabled", "geometry.magnet")))
+
+
 # field: MagneticField; z, x: sampling arrays
 # Returns: dict with the three profiles and By at the centre
 def sample_profiles(field, z, x, x_offset, z_centre):
@@ -141,7 +150,9 @@ def main():
     # 2. Field (as the propagator sees it) and, if interpolated, its source
     geometry = make_geometry(cfg["geometry"])
     field = build_field(cfg, geometry)
-    interpolated = get_key(magnet, "interpolation.enabled", "geometry.magnet")
+    # Only Biot-Savart is tabulated: hard_edge is always exact and ignores the interpolation block
+    # (build_field), so it has no source to compare with and its folder is not _interp
+    interpolated = field_is_interpolated(magnet)
     source = None
     if interpolated:
         cfg_source = copy.deepcopy(cfg)

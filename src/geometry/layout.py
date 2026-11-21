@@ -5,6 +5,7 @@
 import pandas as pd
 
 from src.utils.hashing import short_hash
+from src.utils.validation import check_real
 from .geometry import Geometry, TOL
 
 
@@ -12,10 +13,14 @@ from .geometry import Geometry, TOL
 # DetectorPlanes (eg 100 and 100.0 give the same value). Field parameters (B0, model...)
 # are left out: they do not change the layout (the resolution sigma_x is not in geometry).
 # A disabled phantom/magnet has its parameters at None.
-# x_half_gap: transverse size of the magnet, drawn in the report (None without magnet)
+# x_half_gap: transverse size of the magnet, drawn in the report (None without magnet). It comes
+#             straight from the yaml, so it is normalised here: 50 and 50.0 must give the same hash
+#             (generate_layout validates it to a float, generate_propagation passes the yaml value)
 # Returns: dict
 def layout_parameters(geometry, detectors, x_half_gap):
 
+    if geometry.has_magnet:
+        x_half_gap = check_real("x_half_gap", x_half_gap, minimum=0.0, strict=True)
     return {
         "z_start_phantom": geometry.z_start_phantom,
         "phantom_layers": geometry.phantom_layers,

@@ -66,9 +66,9 @@ class FilterResult:
     S: np.ndarray        # (n,) their variances
     chi2_k: np.ndarray   # (n,) chi2 increment of each hit
     # Range constraints (NaN: not applied, either disabled or irrelevant, i.e. > N_SIGMA_IRRELEVANT away)
-    s_reach: np.ndarray = field(default=None)   # (n,) safety-net bound s < s_reach[k] before hit k [1/MeV]
-    s_hi: float = np.nan                        # bound s0 < s_hi on the prior: reached the last hit [1/MeV]
-    s_lo: float = np.nan                        # bound s0 > s_lo on the prior: did not reach z_next [1/MeV]
+    s_reach: np.ndarray = field(default=None)   # (n,) safety-net bound s < s_reach[k] before hit k [e/MeV]
+    s_hi: float = np.nan                        # bound s0 < s_hi on the prior: reached the last hit [e/MeV]
+    s_lo: float = np.nan                        # bound s0 > s_lo on the prior: did not reach z_next [e/MeV]
 
     @property
     def chi2(self):

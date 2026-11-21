@@ -30,7 +30,6 @@ from plotting.plot_layout import REPORT_NAME, load_layout, plot_layout
 from src.geometry.layout import layout_name, layout_table
 from src.utils.config_loader import CONFIG_DIR, get_key, load_config, make_detector_planes, make_geometry
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, git_state
-from src.utils.validation import check_real
 
 
 def main():
@@ -66,8 +65,8 @@ def main():
     n_layers = len(geometry.phantom_layers)
     n_phantom_detectors = len(detectors.z_phantom_layers) if detectors else 0
     n_magnet_detectors = detectors.n_inside_magnet if detectors and geometry.has_magnet else 0
-    x_half_gap = check_real("x_half_gap", get_key(geometry_cfg, "magnet.x_half_gap", "geometry"),
-                            minimum=0.0, strict=True)
+    # as generate_propagation: read only with magnet (layout_parameters validates and normalises it)
+    x_half_gap = get_key(geometry_cfg, "magnet.x_half_gap", "geometry") if geometry.has_magnet else None
     name, parameters, hash_ = layout_name(geometry, detectors, x_half_gap)
     out_dir = DATA_DIR / "geometry" / name
     if out_dir.exists() and any(out_dir.iterdir()):

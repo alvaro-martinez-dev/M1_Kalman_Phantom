@@ -354,7 +354,7 @@ def page_stopping(df, tracks, metadata, stages):
     rows = df[df["stops"]]
     grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.2])
 
-    # Summary and coverage: the true initial s = 1/p must be inside [s_lo, s_hi] (NaN: unbounded)
+    # Summary and coverage: the true initial s = |q|/p must be inside [s_lo, s_hi] (NaN: unbounded)
     ax = fig.add_subplot(grid[0, 0])
     ax.axis("off")
     lines = [f"Tracks fitted: {int((tracks['status'] == 'ok').sum())}",

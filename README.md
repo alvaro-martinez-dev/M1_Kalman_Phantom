@@ -361,7 +361,7 @@ For each track, from the prior at z = 0 and hit by hit in beam order:
 - **Range constraints** (`kalman.range_constraints`, `src/kalman/constraints.py`): inside the
   phantom the hits barely measure the energy, and a track that stops there never reaches the
   magnet. Its energy is measured by where it stopped: it reached its last hit (s₀ < s_hi) and left
-  no hit on the next plane (s₀ > s_lo), with s = 1/p. The boundaries are found with the propagator
+  no hit on the next plane (s₀ > s_lo), with s = |q|/p (1/p for unit charge). The boundaries are found with the propagator
   itself (same stopping criterion as the MC) and applied to the prior by truncating its Gaussian
   (constrained Kalman filtering by density truncation). Tracks with energy to spare are not
   affected. The q/p pulls are N(0, 1) except at the last hit of a track that stops, where no
@@ -385,7 +385,7 @@ the options of the fit (`smoother`, `central_differences`, finite-difference ste
   (`ok`, or `stopped` if the predicted track stops in the phantom before one of its hits; such a
   track has no fit rows; with range constraints this should not happen), `chi2`, `ndf`,
   `range_end` (no hit on the plane after the last one: the track stopped), `s_hi`, `s_lo` (range
-  bounds on 1/p of the prior, NaN if not applied), `n_reach` (safety-net bounds, normally 0)
+  bounds on |q|/p of the prior, NaN if not applied), `n_reach` (safety-net bounds, normally 0)
 - `fit.parquet`: one row per (track, hit): the identifiers and `z`, `x_meas`, `sigma_x` of the
   hit and, for each stage `pred` (prediction), `filt` (filter) and `smooth` (smoother):
   `x_<stage>`, `tx_<stage>`, `q_over_p_<stage>` and their errors `<var>_<stage>_err`; the
