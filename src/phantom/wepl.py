@@ -24,13 +24,16 @@ def wepl_density(geometry: Geometry) -> float:
     return total
 
 
-def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle: Particle) -> float:
+from scipy.optimize import brentq
+from src.phantom.materials import E_MIN_MEV
+
+def wepl_stopping_power(geometry: Geometry, T_MeV: float, particle=None) -> float:
     """
     Exact WEPL definition: WEPL = R_water(T_in) - R_water(T_out).
     This is the quantity measured in proton CT. It requires finding T_out
     by subtracting the material range from T_in step by step.
     """
-    T_current = T_in_MeV
+    T_current = T_MeV
     
     for layer in geometry.phantom_layers:
         mat = material_object(layer["material"])
@@ -40,8 +43,24 @@ def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle: Particle)
         range_in_mat = range_csda_fast(T_current, mat, particle)
         
         if range_in_mat <= thickness:
-            # The particle stops inside this layer. The remaining WEPL is just the water range of the current energy.
-            return range_csda_fast(T_current, WATER, particle)
+            # The particle stops inside this layer. 
+            # The final energy is 0, so the WEPL is the full water range of the initial energy.
+            return range_csda_fast(T_MeV, WATER, particle)
         
-        # To find T_out, we need to invert the range. Since we have a spline table, we can just find the energy that corresponds to (range_in_mat - thickness).
-        # Note: For a fast approximation, you can use a root-finding algorithm, but using the table interpolation is faster.
+        # We need to find T_out such that the range in the material equals the remaining range.
+        remaining_range = range_in_mat - thickness
+        
+        # Define the function to find the root (where range(T) - remaining_range == 0)
+        def root_func(T):
+            return range_csda_fast(T, mat, particle) - remaining_range
+        
+        # The root is bracketed between the minimum valid energy (0.75 MeV) and the current energy.
+        T_out = brentq(root_func, E_MIN_MEV, T_current)
+        T_current = T_out
+        
+    # The particle has exited the phantom.
+    # WEPL is the difference between the water range of the initial and final energy.
+    R_water_in = range_csda_fast(T_MeV, WATER, particle)
+    R_water_out = range_csda_fast(T_current, WATER, particle)
+    
+    return R_water_in - R_water_out
