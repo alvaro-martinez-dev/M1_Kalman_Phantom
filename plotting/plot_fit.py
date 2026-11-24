@@ -3,27 +3,34 @@
 # Validation report of a Kalman fit (data/fit/, see scripts/generate_fit.py): a single multi-page
 # pdf that compares the fitted states with the MC truth of the propagation the hits come from
 # (joined by track_id, plane_index; the truth is read from the propagation, the fit never sees it).
-# Filter (filt) and smoother (smooth, if the fit has it) are drawn side by side:
-#   1. Pulls (fit - true) / sigma_fit of x, tx and q/p against N(0, 1), one page per stage: the
+# Filter (filt) and smoother (smooth, if the fit has it) are drawn together:
+#   1. Pulls (fit - true) / sigma_fit of x, tx and q/p against N(0, 1), one row per stage: the
 #      errors of the fit are right if the pulls are N(0, 1). ONE plane per track, chosen at random:
 #      the pulls of the planes of a track are correlated (q/p is a single number per track, the
 #      smoother uses the same hits at every plane), so a histogram of all the planes would not
 #      have independent entries and its chi2 against N(0, 1) would mean nothing
-#   2. chi2 of the tracks against chi2(ndf), and its probability against a flat distribution
-#   3. Per detector plane: resolution std(fit - true) against the error the fit gives, sqrt(<sigma^2>)
-#   4. Per detector plane: mean and std of the pulls, against 0 and 1
+#   2-3. Fit and true values of x, tx and q/p overlaid, at the entrance and exit of the phantom (2:
+#      D_phantom_start, D_phantom_end) and of the magnet (3: D_magnet_start, D_magnet_end): what the
+#      pulls measure, seen directly. A missing element leaves its rows empty, saying so. The fit is a
+#      posterior mean, pulled towards the prior, so its distribution is NARROWER than the true one
+#      where the measurements say little: Var(fit) ~ Var(true) - Var(fit - true). E.g. q/p of the
+#      filter before the magnet is almost the prior for every track (a spike: its peak is cut and
+#      the panel says so)
+#   4. chi2 of the tracks against chi2(ndf), and its probability against a flat distribution
 #   5. NEES = (fit - true)^T C^-1 (fit - true) against chi2(3): tests the whole covariance, also the
 #      correlations that the pulls do not see. Histogram at one plane per track, and mean per plane
 #      (only for fits that store the correlations, corr_* columns of src/kalman/fit.py)
-#   6. Tracks that stop in the phantom (fits with range_end, see src/kalman/fit.py): how many, the
+#   6. Per detector plane: resolution std(fit - true) against the error the fit gives, sqrt(<sigma^2>)
+#   7. Per detector plane: mean and std of the pulls, against 0 and 1
+#   8. Tracks that stop in the phantom (fits with range_end, see src/kalman/fit.py): how many, the
 #      coverage of the range bounds (true initial 1/p inside [s_lo, s_hi]), the energy resolution at
 #      the phantom entrance against that of the beam, and the pulls against the number of hits
 #      before the last one
-#   7. A few tracks: fit - true of x and q/p along z with their ±1 sigma bands, and the hits
+#   9. A few tracks: fit - true of x and q/p along z with their ±1 sigma bands, and the hits
 #
-# The LAST hit of a track that stops is left out of pages 1, 3, 4 and 5: there the true energy is
-# anywhere between ~1 MeV and the energy to cross the layer, which no Gaussian in q/p describes (see
-# src/kalman/filter.py), and it would hide how the rest of the fit behaves. Page 6 shows it apart.
+# The LAST hit of a track that stops is left out of pages 1, 2, 3, 5, 6 and 7: there the true energy
+# is anywhere between ~1 MeV and the energy to cross the layer, which no Gaussian in q/p describes
+# (see src/kalman/filter.py), and it would hide how the rest of the fit behaves. Page 8 shows it apart.
 #
 # Usage (from the repo root), to redo the report of an existing fit:
 #   python -m plotting.plot_fit fit/<name>
@@ -41,6 +48,7 @@ from plotting.plot_hits import chi2_text, gaussian_panel
 from plotting.plot_init_beam import (COLOR_AXIS, COLOR_EXPECTED, COLOR_MUTED, COLOR_TEXT, PAGE_SIZE,
                                      PANEL_ROWS, expected_panel, n_bins, style_axes)
 from plotting.plot_layout import COLORS_MATERIAL
+from plotting.plot_tracks import plane_index_named
 from src.kalman.fit import CORR_PAIRS
 from src.propagator.propagator import kinetic_energy
 from src.utils.config_loader import particle_by_name
@@ -57,6 +65,14 @@ VARIABLES = {
     "q_over_p": ("q/p", r"$(q/p)_\mathrm{fit} / (q/p)_\mathrm{true} - 1$ [%]", 1e2),
 }
 RESOLUTION_UNITS = {"x": "µm", "tx": "mrad", "q_over_p": "% of q/p"}
+# Page of fit and true values overlaid: (axis label, factor to the plotted units)
+VALUES = {"x": (r"$x$ [mm]", 1), "tx": (r"$t_x$ [mrad]", 1e3), "q_over_p": (r"$q/p$ [e/GeV]", 1e3)}
+COLOR_TRUE = "#c3c2b7"      # filled histogram of the true values, under the lines of the fit
+SPIKE_FACTOR = 3            # a fit histogram this many times taller than the true one is cut (pages 2-3)
+# Pages of fit and true values overlaid: element -> planes (one row each), entrance and exit
+FIT_VS_TRUE_PAGES = {"phantom": ["D_phantom_start", "D_phantom_end"],
+                     "magnet": ["D_magnet_start", "D_magnet_end"]}
+SIDE_MARGIN = [1, 7, 1]     # width ratios margin / panels / margin of the per-plane resolution page
 N_EXAMPLE_TRACKS = 3       # tracks of the last page
 MARKER_SIZE = 5.0
 BAND_ALPHA = 0.25
@@ -147,23 +163,85 @@ def new_page(title, metadata, excludes_last_of_stop=False):
     return fig
 
 
-# Page 1 (one per stage): pulls of x, tx and q/p against N(0, 1), at one random plane per track
+# Page 1: pulls of x, tx and q/p against N(0, 1), at one random plane per track, one row per stage
 # sample: one_per_track(df, seed), the same rows for every stage
-def page_pulls(sample, metadata, stage):
+def page_pulls(sample, metadata, stages):
 
-    fig = new_page(f"Pulls of the {STAGES[stage][0].lower()} (one random plane per track)", metadata, True)
-    grid = fig.add_gridspec(2, 3, height_ratios=PANEL_ROWS)
-    for j, (var, (label, _, _)) in enumerate(VARIABLES.items()):
-        ax = fig.add_subplot(grid[0, j])
-        ax_pull = fig.add_subplot(grid[1, j], sharex=ax)
-        gaussian_panel(ax, ax_pull, sample[f"pull_{var}_{stage}"].to_numpy(), 0.0, 1.0,
-                       f"({label}$_\\mathrm{{fit}}$ − {label}$_\\mathrm{{true}}$) / $\\sigma_\\mathrm{{fit}}$")
-        ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
-        if j == 0:
-            ax.legend(["Fit", "N(0, 1)"], loc="upper right", fontsize=8, frameon=False)
-    fig.text(0.5, 0.02, "One entry per track, at a plane chosen at random: the planes of a track are correlated "
-             "(q/p is one number per track), so only one of them gives independent entries. "
-             "Per plane: page 4", ha="center", fontsize=8, color=COLOR_MUTED)
+    fig = new_page("Pulls (one random plane per track)", metadata, True)
+    grid = fig.add_gridspec(2 * len(stages), 3, height_ratios=PANEL_ROWS * len(stages))
+    for i, st in enumerate(stages):
+        name, _ = STAGES[st]
+        for j, (var, (label, _, _)) in enumerate(VARIABLES.items()):
+            ax = fig.add_subplot(grid[2 * i, j])
+            ax_pull = fig.add_subplot(grid[2 * i + 1, j], sharex=ax)
+            gaussian_panel(ax, ax_pull, sample[f"pull_{var}_{st}"].to_numpy(), 0.0, 1.0,
+                           f"({label}$_\\mathrm{{fit}}$ − {label}$_\\mathrm{{true}}$) / $\\sigma_\\mathrm{{fit}}$")
+            ax.set_title(f"{name}\n" + ax.get_title(loc="left"), fontsize=8, color=COLOR_TEXT, loc="left")
+            ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
+            if j == 0:
+                ax.legend(["Fit", "N(0, 1)"], loc="upper right", fontsize=8, frameon=False)
+    fig.supxlabel("One entry per track, at a plane chosen at random: the planes of a track are correlated "
+                  "(q/p is one number per track), so only one of them gives independent entries. "
+                  "Per plane: page 'Pulls per detector plane'", fontsize=8, color=COLOR_MUTED)
+    return fig
+
+
+# Pages 2-3: fit (each stage) and true values of x, tx and q/p overlaid, one row per plane of `names`
+# (entrance and exit of an element: FIT_VS_TRUE_PAGES). A plane the fit does not have (element
+# disabled) or that no track reached gives a row of empty panels that say so. The fit histogram is
+# narrower than the true one where the fit leans on the prior (see the header); a fit histogram much
+# taller than the true one is cut
+# element: "phantom" or "magnet", for the title; names: plane names, one row each
+def page_fit_vs_true(df, metadata, stages, element, names):
+
+    fig = new_page(f"Fit and true values overlaid: entrance and exit of the {element}", metadata, True)
+    planes = metadata["planes"]
+    grid = fig.add_gridspec(len(names), len(VALUES))
+    handles = None
+    for i, name in enumerate(names):
+        k = plane_index_named(planes, name)      # merged planes (A+B) are found by any of their names
+        at = df[df["plane_index"] == k] if k is not None else df.iloc[:0]
+        for j, (var, (xlabel, factor)) in enumerate(VALUES.items()):
+            ax = fig.add_subplot(grid[i, j])
+            style_axes(ax)
+            if at.empty:
+                ax.set_axis_off()
+                reason = (f"no {name} plane in this fit (no {element}?)" if k is None
+                          else f"no fitted track at {planes[k]['name']}")
+                ax.text(0.5, 0.5, f"{xlabel}\n{reason}", transform=ax.transAxes,
+                        ha="center", va="center", fontsize=9, color=COLOR_MUTED)
+                continue
+            series = [("True", at[f"{var}_true"].to_numpy() * factor, COLOR_TRUE)]
+            series += [(STAGES[st][0], at[f"{var}_{st}"].to_numpy() * factor, STAGES[st][1]) for st in stages]
+            # range: ALL the true values (so that its histogram has every track) and at least 99.8 % of each
+            # fit series (a quantile, so that one outlier of the fit does not squeeze the rest)
+            true = series[0][1]
+            low = min([true.min()] + [np.quantile(v, 0.001) for _, v, _ in series[1:]])
+            high = max([true.max()] + [np.quantile(v, 0.999) for _, v, _ in series[1:]])
+            edges = np.linspace(low, high, n_bins(len(at)) + 1)
+            peaks = []
+            for n, (name, values, color) in enumerate(series):
+                if n == 0:
+                    counts, _, _ = ax.hist(values, edges, color=color, label=name)
+                else:
+                    counts, _, _ = ax.hist(values, edges, histtype="step", color=color, linewidth=1.5, label=name)
+                peaks.append(counts.max())
+            # a fit histogram SPIKE_FACTOR times taller than the true one (a fit that is almost the prior)
+            # is cut, so that the others stay readable
+            cut = [name for (name, _, _), peak in zip(series[1:], peaks[1:]) if peak > SPIKE_FACTOR * peaks[0]]
+            if cut:
+                kept = [peak for (name, _, _), peak in zip(series, peaks) if name not in cut]
+                ax.set_ylim(0, 1.15 * max(kept))
+            ax.set_title(("" if j else f"{planes[k]['name']} (z = {planes[k]['z']:g} mm), {len(at)} tracks\n")
+                         + f"std: {series[0][0]} {series[0][1].std():.3g}\n"
+                         + "  |  ".join(f"{name} {values.std():.3g}" for name, values, _ in series[1:])
+                         + (f"\n{', '.join(cut)}: peak off scale" if cut else ""),
+                         fontsize=8, color=COLOR_TEXT, loc="left")
+            ax.set_xlabel(xlabel, fontsize=9, color=COLOR_TEXT)
+            ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
+            handles = ax.get_legend_handles_labels()
+    if handles:
+        fig.legend(*handles, loc="outside lower center", ncols=len(handles[0]), fontsize=9, frameon=False)
     return fig
 
 
@@ -234,9 +312,13 @@ def page_resolution(df, metadata, stages):
     planes = metadata["planes"]
     index = np.arange(len(planes))
     offsets = np.linspace(-0.12, 0.12, len(stages)) if len(stages) > 1 else [0.0]
-    axes = fig.subplots(3, 1, sharex=True)
+    # panels in the central column only (margins left and right), one legend for all, below them
+    grid = fig.add_gridspec(len(VARIABLES), 3, width_ratios=SIDE_MARGIN)
+    axes = [fig.add_subplot(grid[i, 1]) for i in range(len(VARIABLES))]
     for ax in axes:
         style_axes(ax)
+        if ax is not axes[0]:
+            ax.sharex(axes[0])
     for ax, (var, (label, _, _)) in zip(axes, VARIABLES.items()):
         for st, offset in zip(stages, offsets):
             name, color = STAGES[st]
@@ -251,9 +333,13 @@ def page_resolution(df, metadata, stages):
                        label=f"$\\sigma_x$ of the hits = {metadata['sigma_x'] * 1e3:g} µm")
         ax.set_ylabel(f"Resolution [{RESOLUTION_UNITS[var]}]", fontsize=9, color=COLOR_MUTED)
         ax.set_title(f"{label}", fontsize=9, color=COLOR_TEXT, loc="left")
-        ax.set_ylim(0, None)
-        ax.legend(loc="upper right", fontsize=7, frameon=False, ncols=len(stages) + 1)
+        top = ax.get_ylim()[1] * 1.1
+        ax.set_ylim(-0.06 * top, top)     # a little below 0: points near 0 (e.g. tx after the phantom) not cut
         plane_axis(ax, planes)
+        if ax is not axes[-1]:
+            ax.tick_params(axis="x", labelbottom=False)
+    fig.legend(*axes[0].get_legend_handles_labels(), loc="outside lower center", ncols=len(stages) + 1,
+               fontsize=8, frameon=False)
     return fig
 
 
@@ -484,14 +570,16 @@ def plot_fit(fit_dir, out_path=None, n_tracks=N_EXAMPLE_TRACKS, seed=0):
     sample = one_per_track(main, seed)
 
     # All the pages are built first: a failure does not leave a partial pdf behind
-    pages = [page_pulls(sample, metadata, st) for st in stages]
-    pages += [page_chi2(tracks, metadata), page_resolution(main, metadata, stages),
-              page_pull_planes(main, metadata, stages)]
+    pages = [page_pulls(sample, metadata, stages)]
+    pages += [page_fit_vs_true(main, metadata, stages, element, names)
+              for element, names in FIT_VS_TRUE_PAGES.items()]
+    pages.append(page_chi2(tracks, metadata))
     if has_correlations(df, stages):
         pages.append(page_nees(main, sample, metadata, stages))
     else:
         warnings.warn(f"{fit_dir} does not store the correlations of the covariance (fit made before they "
                       "were added): no NEES page. Redo the fit to get it")
+    pages += [page_resolution(main, metadata, stages), page_pull_planes(main, metadata, stages)]
     if df["stops"].any():
         pages.append(page_stopping(df, tracks, metadata, stages))
     pages.append(page_examples(df, metadata, stages, n_tracks, seed))
