@@ -1,31 +1,31 @@
-created: '2026-11-21T19:33:31'
-git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+created: '2026-11-24T16:11:09'
+git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
 git_uncommitted_changes: true
 n_rows: 10000
 config_source: configs\config.yaml
-input: data\hits\proton_low_Beam9c63cf_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70
-input_created: '2026-11-21T19:07:31'
-input_git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+input: data\hits\antimuon_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70
+input_created: '2026-11-24T15:50:53'
+input_git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
 propagation:
-  input: data\propagation\proton_low_Beam9c63cf_Lay09e691_Magn9eaece_Propb14662_seed59_n10000
-  created: '2026-11-21T19:04:22'
-  git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+  input: propagation\antimuon_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000
+  created: '2026-11-24T15:45:33'
+  git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
   seed: 59
   layout_name: layout_Lay09e691_11Det_3Layers_2PhDet_1MagDet
-  beam_hash: 9c63cf
+  beam_hash: e55ace
   layout_hash: 09e691
   magnet_hash: 9eaece
   propagator_hash: b14662
 beam:
-  input: init_beam/proton_low_n100000_seed42_Beam9c63cf
-  particle: PROTON
+  input: init_beam/antimuon_n100000_seed42_Beame55ace
+  particle: MU_PLUS
   x0: 0.0
   sigma_x0: 1.0
   theta0: 0.0
   sigma_theta0: 0.001
-  p0: 391.5
+  p0: 700.0
   sigma_p0: 3.0
-particle: p
+particle: mu+
 sigma_x: 0.1
 planes:
 - name: D_before_phantom_1
@@ -50,11 +50,11 @@ planes:
   z: 700.0
 - name: D_after_magnet_1
   z: 750.0
-kalman_hash: ceea7b
+kalman_hash: 402a84
 n_max: null
 smoother: true
 central_differences: false
-range_constraints: false
+range_constraints: true
 fd_steps:
 - 0.0001
 - 1.0e-07
@@ -64,18 +64,18 @@ prior:
   x0:
   - 0.0
   - 0.0
-  - 0.002554278416347382
+  - 0.0014285714285714286
   C0_diag:
   - 1.0
   - 1.0e-06
-  - 3.8310290384569155e-10
+  - 3.7484381507705125e-11
 n_tracks: 10000
-n_ok: 5285
-n_stopped: 4715
-n_range_end: 10000
+n_ok: 10000
+n_stopped: 0
+n_range_end: 0
 n_range_bounded: 0
 n_safety_net: 0
-n_hits: 10570
-chi2_ndf_mean: 1.0076382309799223
-time_s: 79.2
+n_hits: 110000
+chi2_ndf_mean: 0.9967785589314387
+time_s: 305.4
 n_workers: 8

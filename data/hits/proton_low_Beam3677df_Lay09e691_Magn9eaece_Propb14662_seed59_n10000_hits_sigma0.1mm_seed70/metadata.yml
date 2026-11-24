@@ -1,11 +1,11 @@
-created: '2026-11-24T15:19:14'
-git_commit: ed68345c26c9005a741a4c8798d498d6c86b7619
+created: '2026-11-24T15:50:03'
+git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
 git_uncommitted_changes: true
 n_rows: 10000
 config_source: configs\config.yaml
 input: propagation\proton_low_Beam3677df_Lay09e691_Magn9eaece_Propb14662_seed59_n10000
-input_created: '2026-11-24T15:16:50'
-input_git_commit: ed68345c26c9005a741a4c8798d498d6c86b7619
+input_created: '2026-11-24T15:49:03'
+input_git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
 propagation:
   input: init_beam/proton_low_n100000_seed42_Beam3677df
   seed: 59
@@ -20,7 +20,7 @@ seed: 70
 sigma_x: 0.1
 particle: p
 n_tracks: 10000
-n_hits: 24715
+n_hits: 24703
 planes:
 - name: D_before_phantom_1
   z: 25.0

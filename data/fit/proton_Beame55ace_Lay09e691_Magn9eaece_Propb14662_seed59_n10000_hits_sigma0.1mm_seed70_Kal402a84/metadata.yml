@@ -1,0 +1,81 @@
+created: '2026-11-24T16:05:06'
+git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
+git_uncommitted_changes: true
+n_rows: 10000
+config_source: configs\config.yaml
+input: data\hits\proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70
+input_created: '2026-11-24T15:50:28'
+input_git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
+propagation:
+  input: propagation\proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000
+  created: '2026-11-24T15:47:54'
+  git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
+  seed: 59
+  layout_name: layout_Lay09e691_11Det_3Layers_2PhDet_1MagDet
+  beam_hash: e55ace
+  layout_hash: 09e691
+  magnet_hash: 9eaece
+  propagator_hash: b14662
+beam:
+  input: init_beam/proton_n100000_seed42_Beame55ace
+  particle: PROTON
+  x0: 0.0
+  sigma_x0: 1.0
+  theta0: 0.0
+  sigma_theta0: 0.001
+  p0: 700.0
+  sigma_p0: 3.0
+particle: p
+sigma_x: 0.1
+planes:
+- name: D_before_phantom_1
+  z: 25.0
+- name: D_phantom_start
+  z: 50.0
+- name: D_layer_1_to_2
+  z: 100.0
+- name: D_layer_2_to_3
+  z: 120.0
+- name: D_phantom_end
+  z: 170.0
+- name: D_gap_1
+  z: 246.66666666666669
+- name: D_gap_2
+  z: 323.33333333333337
+- name: D_magnet_start
+  z: 400.0
+- name: D_magnet_1
+  z: 550.0
+- name: D_magnet_end
+  z: 700.0
+- name: D_after_magnet_1
+  z: 750.0
+kalman_hash: 402a84
+n_max: null
+smoother: true
+central_differences: false
+range_constraints: true
+fd_steps:
+- 0.0001
+- 1.0e-07
+- 1.0e-06
+prior:
+  z0: 0.0
+  x0:
+  - 0.0
+  - 0.0
+  - 0.0014285714285714286
+  C0_diag:
+  - 1.0
+  - 1.0e-06
+  - 3.7484381507705125e-11
+n_tracks: 10000
+n_ok: 10000
+n_stopped: 0
+n_range_end: 0
+n_range_bounded: 0
+n_safety_net: 0
+n_hits: 110000
+chi2_ndf_mean: 0.99650180816525
+time_s: 296.4
+n_workers: 8

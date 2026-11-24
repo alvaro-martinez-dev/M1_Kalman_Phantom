@@ -145,7 +145,7 @@ geometry:
 
 propagator:
   # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
-  input: init_beam/antimuon_n100000_seed42_Beame55ace   # dataset of initial beam, relative to data/ (charged particles)
+  input: init_beam/proton_n100000_seed42_Beame55ace   # dataset of initial beam, relative to data/ (charged particles)
   seed: 59    # seed for scattering kicks; must differ from the seed of the input
   n_max: 10000 # number of tracks to propagate, chosen at random from the input (null: all of them).
               # Must be <= the number of tracks of the input. Write it as an integer (1000, not 1e3)
@@ -175,7 +175,7 @@ propagator:
 
 hits:
   # Measurement on each detector plane (scripts/generate_hits.py): x_meas = x_true + N(0, sigma_x)
-  input: propagation\proton_low_Beam3677df_Lay09e691_Magn9eaece_Propb14662_seed59_n10000   # propagation dataset, relative to data/
+  input: propagation\proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000   # propagation dataset, relative to data/
   seed: 70                    # seed for the measurement errors; must differ from the seed of the input
   sigma_x: 0.1                # [mm] resolution of every plane
 
@@ -187,11 +187,11 @@ hits:
 kalman:
   # Kalman fit of the hits (scripts/generate_fit.py). The model of the fit (geometry, field,
   # propagator and the beam as prior) is read from the metadata of the datasets, not from this yaml
-  input: data\hits\proton_low_Beam9c63cf_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70 #hits\proton_Beamca5fcd_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
+  input: data\hits\antimuon_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70 #hits\proton_Beamca5fcd_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
   n_max: null                 # fit only the first n tracks of the input (null: all of them)
   smoother: true              # also run the RTS smoother after the filter (both are saved)
   central_differences: false  # Jacobians by central differences (slower) instead of forward ones
-  range_constraints: false #true     # use the presence/absence of hits as bounds on the energy (truncated
+  range_constraints: true #false     # use the presence/absence of hits as bounds on the energy (truncated
                               # Kalman, src/kalman/constraints.py): needed for tracks that stop in
                               # the phantom. No effect on tracks with energy to spare
   n_workers: null             # processes, as propagator.n_workers (null = half the logical CPUs)
