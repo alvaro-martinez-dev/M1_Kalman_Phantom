@@ -8,6 +8,8 @@ stopping-power ratios.
 from src.constants import WATER, Particle
 from src.geometry.geometry import Geometry
 from src.phantom.materials import material_object, bethe_bloch, range_csda_fast
+from scipy.optimize import brentq
+from src.phantom.materials import E_MIN_MEV
 
 def wepl_density(geometry: Geometry) -> float:
     """
@@ -24,16 +26,29 @@ def wepl_density(geometry: Geometry) -> float:
     return total
 
 
-from scipy.optimize import brentq
-from src.phantom.materials import E_MIN_MEV
+def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle) -> float:
+    """
+    Approximate WEPL from stopping-power ratios at a single energy T_in_MeV:
+        WEPL = sum_i thickness_i * (dE/dx)_i(T) / (dE/dx)_water(T)
+    Valid for thin phantoms where the energy does not change much along the path.
+    For the exact definition (proton CT), use wepl_range_definition().
+    """
+    dEdx_water = bethe_bloch(T_in_MeV, WATER, particle)
+    total = 0.0
+    for layer in geometry.phantom_layers:
+        mat = material_object(layer["material"])
+        dEdx_mat = bethe_bloch(T_in_MeV, mat, particle)
+        total += layer["thickness"] * (dEdx_mat / dEdx_water)
+    return total
 
-def wepl_stopping_power(geometry: Geometry, T_MeV: float, particle=None) -> float:
+def wepl_range_definition(geometry: Geometry, T_in_MeV: float, particle) -> float:
     """
     Exact WEPL definition: WEPL = R_water(T_in) - R_water(T_out).
     This is the quantity measured in proton CT. It requires finding T_out
     by subtracting the material range from T_in step by step.
     """
-    T_current = T_MeV
+    T_current = T_in_MeV
+    T_MeV = T_in_MeV
     
     for layer in geometry.phantom_layers:
         mat = material_object(layer["material"])
