@@ -54,7 +54,7 @@ MU_PLUS   = Particle("mu+", 105.6583755, +1, 658_638.4)
 #K_PLUS    = Particle("K+",  493.677, +1, 3_711.0)
 
 # --- Quarkonia ---
-JPSI      = Particle("J/psi", 3096.900, 0, 2.13e-9)   # Gamma = 92.6 keV -> decays at the vertex
+#JPSI      = Particle("J/psi", 3096.900, 0, 2.13e-9)   # Gamma = 92.6 keV -> decays at the vertex
 
 # --- Barions ---
 PROTON     = Particle("p",    938.27208816, +1)
@@ -86,7 +86,7 @@ class DecayChannel:
         if self.parent.mass <= d1.mass + d2.mass:
             raise ValueError(f"{self.parent.name} -> {d1.name} {d2.name} is kinematically forbidden")
 
-JPSI_MUMU   = DecayChannel(JPSI,     (MU_PLUS, MU_MINUS),    br=0.05961)
+#JPSI_MUMU   = DecayChannel(JPSI,     (MU_PLUS, MU_MINUS),    br=0.05961)
 #JPSI_EE     = DecayChannel(JPSI,     (POSITRON, ELECTRON),   br=0.05971)
 #PI_PLUS_MUNU  = DecayChannel(PI_PLUS,  (MU_PLUS, NU_MU),     br=0.99988)
 #PI_MINUS_MUNU = DecayChannel(PI_MINUS, (MU_MINUS, NU_MU_BAR), br=0.99988)
