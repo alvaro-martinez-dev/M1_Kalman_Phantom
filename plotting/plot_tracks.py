@@ -9,6 +9,14 @@
 # z x x = +y towards the reader), ⊗ for B_y < 0, into the page, with size growing with |B_y|.
 # Points with |B_y| below FIELD_MIN_FRACTION of B0 are not marked.
 #
+# Pages 2-4: true state (x, tx, q/p) of ALL the tracks of the dataset at three planes, read from
+# states.parquet (no propagation):
+#   2. D_phantom_end   3. D_magnet_end   4. the last detector plane (largest z)
+# A plane may carry several names when two boundaries coincide (e.g. D_phantom_end+D_magnet_start),
+# so it is found by any of them. The three pages are always written: if the phantom or the magnet is
+# disabled (or there are no detector planes) the page has empty panels that say why, and if no track
+# reached the plane, they say so. Tracks that stopped before a plane are not in it (N of M reached).
+#
 # Everything is rebuilt from the metadata of the dataset (geometry, detector planes, field,
 # propagator), so the tracks are always drawn on the system they were propagated in: no layout
 # folder is needed (the layout it corresponds to is recorded in the metadata, layout_name).
@@ -34,6 +42,7 @@ from matplotlib.figure import Figure
 from matplotlib.legend_handler import HandlerTuple
 from matplotlib.lines import Line2D
 
+from plotting.plot_init_beam import COLOR_DATA, COLOR_MUTED, is_constant, n_bins, style_axes
 from plotting.plot_layout import COLORS_MATERIAL, COLOR_TEXT, LEGEND_COLUMNS, MARGIN_RATIOS, PAGE_SIZE, draw_layout
 from src.field import build_field
 from src.geometry.geometry import TOL
@@ -63,6 +72,14 @@ FIELD_MIN_FRACTION = 0.05   # |B_y| / |B0| below which no symbol is drawn
 FIELD_SIZE_MIN, FIELD_SIZE_MAX = 4.0, 9.0   # marker size at FIELD_MIN_FRACTION and at |B_y| >= |B0|
 FIELD_INNER_RATIO = 0.55    # size of the inner dot / cross relative to the circle
 FIELD_EDGE_WIDTH = 0.9
+
+# Pages of the states at a plane: column of states.parquet -> (axis label, factor to the plot units)
+STATE_VARIABLES = {
+    "x":        (r"$x$ [mm]", 1),
+    "tx":       (r"$t_x$ [$10^{-3}$]", 1e3),
+    "q_over_p": (r"$q/p$ [e/GeV]", 1e3),
+}
+STATE_ROWS = [1, 2.5, 1]    # height ratios margin / histograms / margin of those pages
 
 
 # prop_metadata: metadata.yml of the propagation dataset
@@ -155,6 +172,86 @@ def field_legend_handles():
     return out
 
 
+# planes: list of {"name", "z"} of the metadata, in beam order (index = plane_index of states.parquet)
+# name: one plane name, e.g. "D_phantom_end"; merged planes ("A+B") are found by any of their names
+# Returns: index of the plane, or None if there is no plane with that name
+def plane_index_named(planes, name):
+
+    for k, plane in enumerate(planes):
+        if name in plane["name"].split("+"):
+            return k
+    return None
+
+
+# prop_metadata: metadata.yml of the propagation dataset
+# Returns: list of (label, plane index or None, reason) for the pages 2-4, in this order:
+#          D_phantom_end, D_magnet_end, last detector plane. reason says why the plane is missing
+#          (None if it exists)
+def state_locations(prop_metadata):
+
+    planes = prop_metadata.get("planes") or []
+    geometry = prop_metadata["geometry"]
+    if not planes:
+        no_planes = "no detector planes in this dataset"
+        return [("D_phantom_end", None, no_planes), ("D_magnet_end", None, no_planes),
+                ("last detector plane", None, no_planes)]
+
+    out = []
+    for element, name in (("phantom", "D_phantom_end"), ("magnet", "D_magnet_end")):
+        if not geometry[element]["enabled"]:
+            out.append((name, None, f"no {element} in this system"))
+            continue
+        k = plane_index_named(planes, name)
+        out.append((name, k, None if k is not None else f"no {name} plane in this dataset"))
+    out.append(("last detector plane", len(planes) - 1, None))
+    return out
+
+
+# One page with the histograms of x, tx and q/p of the tracks at one plane.
+# at_plane: rows of states.parquet at that plane (may be empty); plane: {"name", "z"} or None
+# label: what the page is about (e.g. "D_magnet_end"); reason: why there is no plane, or None
+# n_total: tracks of the dataset; particle: Particle; dataset_name: shown in the subtitle
+# Returns: Figure
+def page_states(at_plane, plane, label, reason, n_total, particle, dataset_name):
+
+    fig = Figure(figsize=PAGE_SIZE, layout="constrained")
+    if plane is None:
+        where = f"{label}: {reason}"
+    else:
+        name = plane["name"] if plane["name"] == label else f"{label}: {plane['name']}"
+        where = f"{name} at z = {plane['z']:.1f} mm  |  {len(at_plane)} of {n_total} tracks reached it"
+    fig.suptitle(f"True state at {label}\n{dataset_name}  |  {particle.name}\n{where}",
+                 fontsize=11, color=COLOR_TEXT)
+
+    grid = fig.add_gridspec(3, len(STATE_VARIABLES), height_ratios=STATE_ROWS)
+    for j, (column, (xlabel, factor)) in enumerate(STATE_VARIABLES.items()):
+        ax = fig.add_subplot(grid[1, j])
+        values = at_plane[column].to_numpy() * factor if plane is not None else np.array([])
+
+        if values.size == 0:
+            ax.set_axis_off()
+            message = reason if plane is None else "no track reached this plane"
+            ax.text(0.5, 0.5, f"{xlabel}\n{message}", transform=ax.transAxes,
+                    ha="center", va="center", fontsize=10, color=COLOR_MUTED)
+            continue
+        if is_constant(values):
+            ax.set_axis_off()
+            ax.text(0.5, 0.5, f"{xlabel}\nconstant = {values[0]:g}", transform=ax.transAxes,
+                    ha="center", va="center", fontsize=10, color=COLOR_MUTED)
+            continue
+
+        ax.hist(values, bins=n_bins(values.size), color=COLOR_DATA, histtype="stepfilled", alpha=0.85)
+        title = f"N = {values.size}   mean = {values.mean():.4g}   $\\sigma$ = {values.std(ddof=1):.3g}"
+        if column == "q_over_p":
+            p = np.abs(particle.charge / at_plane[column].to_numpy())
+            title += f"\n<p> = {p.mean():.1f} MeV"
+        ax.set_title(title, fontsize=9, color=COLOR_TEXT)
+        ax.set_xlabel(xlabel, fontsize=9, color=COLOR_TEXT)
+        ax.set_ylabel("tracks", fontsize=9, color=COLOR_TEXT)
+        style_axes(ax)
+    return fig
+
+
 # prop_path: propagation dataset folder (absolute, or relative to data/)
 # n_tracks: tracks to draw, chosen at random with seed; dz: [mm] spacing of the drawn points
 # out_path: output pdf (default: REPORT_NAME in the dataset folder)
@@ -231,8 +328,14 @@ def plot_tracks(prop_path, n_tracks=5, seed=0, dz=2.0, out_path=None):
               ncol=min(len(entries), LEGEND_COLUMNS), fontsize=8, frameon=False)
 
     out_path = Path(out_path) if out_path is not None else prop_dir / REPORT_NAME
+    planes = prop_metadata.get("planes") or []
     with PdfPages(out_path) as pdf:
         pdf.savefig(fig)
+        # 4. States of all the tracks at D_phantom_end, D_magnet_end and the last plane
+        for label, k, reason in state_locations(prop_metadata):
+            at_plane = states[states.plane_index == k] if k is not None else states.iloc[:0]
+            pdf.savefig(page_states(at_plane, planes[k] if k is not None else None, label, reason,
+                                    len(tracks), particle, prop_dir.name))
     return out_path
 
 
