@@ -24,8 +24,8 @@ def test_range_table_matches_the_integral(material, particle, T):
 
 
 def test_range_table_outside_its_limits():
-    assert range_csda_fast(0.05, WATER) == 0.0
-    assert range_csda_fast(2.0e5, WATER) == range_csda(2.0e5, WATER)     # falls back to the integral
+    assert range_csda_fast(0.05, WATER, PROTON) == 0.0
+    assert range_csda_fast(2.0e5, WATER, PROTON) == range_csda(2.0e5, WATER, PROTON)     # falls back to the integral
 
 
 # ---------------------------------------------------------------
@@ -34,25 +34,25 @@ def test_range_table_outside_its_limits():
 
 def test_bethe_bloch_water_200_MeV():
     """PSTAR: dE/dx = 4.465 MeV/cm = 0.4465 MeV/mm at 200 MeV."""
-    dEdx = bethe_bloch(200.0, WATER)
+    dEdx = bethe_bloch(200.0, WATER, PROTON)
     assert 0.442 < dEdx < 0.451, f"dE/dx = {dEdx:.4f} MeV/mm"
 
 
 def test_bethe_bloch_water_100_MeV():
     """PSTAR: dE/dx = 7.299 MeV/cm = 0.7299 MeV/mm at 100 MeV."""
-    dEdx = bethe_bloch(100.0, WATER)
+    dEdx = bethe_bloch(100.0, WATER, PROTON)
     assert 0.720 < dEdx < 0.740, f"dE/dx = {dEdx:.4f} MeV/mm"
 
 
 def test_range_water_200_MeV():
     """PSTAR: CSDA range = 259.6 mm at 200 MeV."""
-    r = range_csda(200.0, WATER)
+    r = range_csda(200.0, WATER, PROTON)
     assert 254.0 < r < 265.0, f"range = {r:.2f} mm"
 
 
 def test_range_water_100_MeV():
     """PSTAR: CSDA range = 77.1 mm at 100 MeV."""
-    r = range_csda(100.0, WATER)
+    r = range_csda(100.0, WATER, PROTON)
     assert 75.5 < r < 78.5, f"range = {r:.2f} mm"
 
 
@@ -62,12 +62,12 @@ def test_range_water_100_MeV():
 
 def test_bethe_bloch_grows_at_low_energy():
     """dE/dx increases as the particle slows down (Bragg peak)."""
-    assert bethe_bloch(50.0, WATER) > bethe_bloch(200.0, WATER)
+    assert bethe_bloch(50.0, WATER, PROTON) > bethe_bloch(200.0, WATER, PROTON)
 
 
 def test_bone_stops_faster_than_water():
     """Bone is denser: shorter range."""
-    assert range_csda(200.0, BONE) < range_csda(200.0, WATER)
+    assert range_csda(200.0, BONE, PROTON) < range_csda(200.0, WATER, PROTON)
 
 
 # ---------------------------------------------------------------
@@ -102,18 +102,18 @@ def test_electron_raises():
 def test_below_E_min_raises():
     """Bethe-Bloch not valid below E_MIN."""
     with pytest.raises(ValueError):
-        bethe_bloch(0.05, WATER)
+        bethe_bloch(0.05, WATER, PROTON)
 
 
 def test_highland_zero_thickness_raises():
     """Zero thickness: log(0) is undefined."""
     with pytest.raises(ValueError):
-        highland_width(200.0, 0.0, WATER)
+        highland_width(200.0, 0.0, WATER, PROTON)
 
 
 def test_highland_negative_thickness_raises():
     with pytest.raises(ValueError):
-        highland_width(200.0, -1.0, WATER)
+        highland_width(200.0, -1.0, WATER, PROTON)
 
 
 # ---------------------------------------------------------------
@@ -122,7 +122,7 @@ def test_highland_negative_thickness_raises():
 
 def test_highland_width_200_MeV_water():
     """At 200 MeV, 100 mm water: theta_0 ~ 20 mrad."""
-    theta = highland_width(200.0, 100.0, WATER)
+    theta = highland_width(200.0, 100.0, WATER, PROTON)
     assert 0.010 < theta < 0.030, f"theta_0 = {theta*1000:.1f} mrad"
 
 
@@ -130,15 +130,15 @@ def test_highland_additivity():
     """n_slices kicks add in quadrature to the single-layer width."""
     x = 100.0
     n = 10
-    theta_total = highland_width(200.0, x, WATER, n_slices=1)
-    theta_step = highland_width(200.0, x, WATER, n_slices=n)
+    theta_total = highland_width(200.0, x, WATER, PROTON, n_slices=1)
+    theta_step = highland_width(200.0, x, WATER, PROTON, n_slices=n)
     combined = np.sqrt(n) * theta_step
     assert np.isclose(combined, theta_total, rtol=1e-12)
 
 
 def test_density_effect_zero_at_low_energy():
     """At 200 MeV in water, beta*gamma < x0 -> delta = 0."""
-    beta, gamma = beta_gamma(200.0)
+    beta, gamma = beta_gamma(200.0, PROTON)
     delta = density_effect(beta * gamma, WATER)
     assert delta == 0.0
 
@@ -151,5 +151,5 @@ def test_density_effect_positive_at_high_energy():
 
 def test_bethe_bloch_unchanged_at_200_MeV_with_delta():
     """At 200 MeV, delta = 0: dE/dx unchanged."""
-    dEdx = bethe_bloch(200.0, WATER)
+    dEdx = bethe_bloch(200.0, WATER, PROTON)
     assert 0.442 < dEdx < 0.451

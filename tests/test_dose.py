@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 
 
-from src.constants import WATER, BONE
+from src.constants import WATER, BONE, PROTON
 from src.geometry.geometry import Geometry
 from src.phantom.materials import material_object
 from src.phantom.wepl import wepl_density, wepl_stopping_power
@@ -15,27 +15,27 @@ from src.phantom.dose import (
 
 
 def test_dose_per_length_units():
-    dEdx = bethe_bloch(200.0, WATER)
-    dose = dose_per_length(200.0, WATER)
+    dEdx = bethe_bloch(200.0, WATER, PROTON)
+    dose = dose_per_length(200.0, WATER, PROTON)
     assert np.isclose(dose, dEdx / WATER.density)
 
 
 def test_dose_in_step_equals_rate():
     step = 1.0
-    D1 = dose_in_step(200.0, step, WATER)
-    D2 = dose_per_length(200.0, WATER) * step * MEV_PER_G_TO_GY
+    D1 = dose_in_step(200.0, step, WATER, PROTON)
+    D2 = dose_per_length(200.0, WATER, PROTON) * step * MEV_PER_G_TO_GY
     assert np.isclose(D1, D2, rtol=1e-12)
 
 
 def test_dose_order_of_magnitude():
     """200 MeV proton, 1 mm water -> ~1e-9 Gy."""
-    D = dose_in_step(200.0, 1.0, WATER)
+    D = dose_in_step(200.0, 1.0, WATER, PROTON)
     assert 1e-10 < D < 1e-8
 
 
 def test_bragg_peak_at_range():
-    assert np.isclose(bragg_peak_depth(200.0, WATER),
-                      range_csda(200.0, WATER))
+    assert np.isclose(bragg_peak_depth(200.0, WATER, PROTON),
+                      range_csda(200.0, WATER, PROTON))
     
     
 
@@ -75,17 +75,30 @@ def test_wepl_density_layered(layered_phantom):
 
 def test_wepl_stopping_power_close_to_density(layered_phantom):
     wepl_d = wepl_density(layered_phantom)
-    wepl_s = wepl_stopping_power(layered_phantom, T_MeV=200.0)
+    wepl_s = wepl_stopping_power(layered_phantom, T_in_MeV=200.0, particle=PROTON)
     # At 200 MeV, the two estimates should be close (not identical)
     assert abs(wepl_s - wepl_d) / wepl_d < 0.15
 
 
 def test_dose_profile_monotonic_energy(layered_phantom):
-    z_arr, T_arr, D_arr = dose_profile(layered_phantom, T0_MeV=200.0, n_steps=200)
+    z_arr, T_arr, D_arr = dose_profile(layered_phantom, T0_MeV=200.0, particle=PROTON, n_steps=200)
     assert np.all(np.diff(T_arr) <= 1e-9)
 
 
-def test_dose_profile_cumulative_positive(layered_phantom):
-    z_arr, T_arr, D_arr = dose_profile(layered_phantom, T0_MeV=200.0, n_steps=200)
+def test_dose_profile_is_a_bragg_curve(layered_phantom):
+    """The 200 MeV proton stops in the phantom (range ~260 mm of water < WEPL ~385 mm): the local
+    dose is >= 0, grows inside each material up to the Bragg peak and is 0 after the stop.
+    It is not monotonic overall: it drops after the peak, and also at the water/bone interface
+    (dose is per unit mass, and bone has lower Z/A than water)."""
+    z_arr, T_arr, D_arr = dose_profile(layered_phantom, T0_MeV=200.0, particle=PROTON, n_steps=200)
     assert np.all(D_arr >= 0)
-    assert np.all(np.diff(D_arr) >= -1e-15)
+
+    stopped = T_arr == 0.0
+    assert stopped.any() and np.all(D_arr[stopped] == 0.0)
+    i_peak = int(np.argmax(D_arr))
+    assert i_peak == np.flatnonzero(~stopped)[-1]                  # the peak is at the last step before the stop
+
+    # before the peak, the dose grows inside each material (interface steps excluded)
+    materials = np.array([layered_phantom.material_at(z) for z in z_arr[:i_peak + 1]])
+    same_material = materials[1:] == materials[:-1]
+    assert np.all(np.diff(D_arr[:i_peak + 1])[same_material] > 0)

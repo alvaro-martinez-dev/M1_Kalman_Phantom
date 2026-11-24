@@ -38,7 +38,7 @@ def proton_state(z, T_MeV, x=0.0, tx=0.0):
 
 
 def no_field_propagator(thickness=L_WATER, **kwargs):
-    return Propagator(geometry(thickness), UniformField(0.0), HALF_GAP, **kwargs)
+    return Propagator(geometry(thickness), UniformField(0.0), HALF_GAP, PROTON, **kwargs)
 
 
 # ----- free space ------------------------------------------------------------------------------
@@ -54,8 +54,8 @@ def test_free_space_before_phantom_is_a_straight_line():
 
 def csda_exit_energy(T_in, path):
     """T_out such that R(T_in) - R(T_out) = path."""
-    R_in = range_csda(T_in, WATER)
-    return brentq(lambda T: R_in - range_csda(T, WATER) - path, 1.0, T_in)
+    R_in = range_csda(T_in, WATER, PROTON)
+    return brentq(lambda T: R_in - range_csda(T, WATER, PROTON) - path, 1.0, T_in)
 
 
 @pytest.mark.parametrize("adaptive", [False, True])
@@ -77,7 +77,7 @@ def test_phantom_inclined_track_uses_the_path_length():
 def test_proton_stops_at_the_csda_range():
     res = no_field_propagator(thickness=300.0).propagate(proton_state(0.0, 200.0), 1000.0, z_out=[100.0, 500.0])
     assert res.stopped
-    assert res.final.z == pytest.approx(Z_PH + range_csda(200.0, WATER))
+    assert res.final.z == pytest.approx(Z_PH + range_csda(200.0, WATER, PROTON))
     assert res.at_z_out[0] is not None and res.at_z_out[1] is None
 
 
@@ -86,7 +86,7 @@ def test_proton_stops_at_the_csda_range():
 def test_hard_edge_magnet_matches_the_circle():
     B0, T = 1.0, 500.0
     field = HardEdgeField(B0=B0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
-    prop = Propagator(geometry(), field, HALF_GAP, step=0.5)
+    prop = Propagator(geometry(), field, HALF_GAP, PROTON, step=0.5)
     res = prop.propagate(proton_state(300.0, T), Z_MAG + L_MAG)
 
     r = momentum(T, PROTON) / (KAPPA * B0)      # [mm], positive charge bends to -x for By > 0
@@ -97,7 +97,7 @@ def test_hard_edge_magnet_matches_the_circle():
 
 
 def test_no_field_beyond_the_half_gap():
-    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP)
+    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP, PROTON)
     inside = prop.propagate(proton_state(300.0, 500.0, x=0.0), 700.0).final
     outside = prop.propagate(proton_state(300.0, 500.0, x=HALF_GAP + 10.0), 700.0).final
     assert inside.tx < -0.01                    # bends
@@ -106,14 +106,14 @@ def test_no_field_beyond_the_half_gap():
 
 def test_field_is_used_between_phantom_and_magnet():
     """Fringe field: the region between phantom end (250) and magnet start (400) is not free."""
-    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP)
+    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP, PROTON)
     s = prop.propagate(proton_state(Z_PH + L_WATER, 500.0), Z_MAG).final
     assert s.tx < 0.0
 
 
 def test_field_is_used_before_the_phantom():
     """The vacuum before the phantom is not assumed field-free: a field reaching it bends the track."""
-    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP)
+    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP, PROTON)
     s = prop.propagate(proton_state(0.0, 500.0), Z_PH).final
     tx_expected = -KAPPA * 1.0 * proton_state(0.0, 500.0).q_p * Z_PH     # small angle
     assert s.tx == pytest.approx(tx_expected, rel=1e-3)
@@ -121,7 +121,7 @@ def test_field_is_used_before_the_phantom():
 
 def test_straight_line_outside_the_field_support():
     field = HardEdgeField(B0=1.0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
-    prop = Propagator(geometry(), field, HALF_GAP)
+    prop = Propagator(geometry(), field, HALF_GAP, PROTON)
     assert prop.field_is_zero(Z_PH + L_WATER, Z_MAG)
     assert prop.field_is_zero(Z_MAG + L_MAG, 800.0)
     assert not prop.field_is_zero(Z_MAG, Z_MAG + L_MAG)
@@ -145,7 +145,7 @@ def test_field_inside_phantom_bends_more_as_the_proton_slows_down(adaptive):
     B0, T0 = 1.0, 200.0
     z_in, z_out = Z_PH, Z_PH + L_WATER
     z_grid = np.linspace(z_in, z_out, 401)
-    with_field = Propagator(geometry(), UniformField(B0), HALF_GAP, adaptive=adaptive)
+    with_field = Propagator(geometry(), UniformField(B0), HALF_GAP, PROTON, adaptive=adaptive)
     res = with_field.propagate(proton_state(z_in, T0), z_out, z_out=z_grid[1:-1])
 
     # The bent track is longer than the layer, so it loses more energy: CSDA along the real path
@@ -168,7 +168,7 @@ def test_field_inside_phantom_bends_more_as_the_proton_slows_down(adaptive):
 
 
 def test_no_field_inside_phantom_beyond_the_half_gap():
-    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP)
+    prop = Propagator(geometry(), UniformField(1.0), HALF_GAP, PROTON)
     s = prop.propagate(proton_state(Z_PH, 200.0, x=HALF_GAP + 10.0), Z_PH + L_WATER).final
     assert s.tx == 0.0
 
@@ -178,12 +178,12 @@ def test_field_map_starting_inside_phantom_warns_and_is_a_cut():
     field = InterpolatedField.from_field(source, x_max=HALF_GAP, z_min=Z_PH + 100.0,   # inside the water
                                          z_max=Z_MAG + L_MAG, dx=1.0, dz=2.0)
     with pytest.warns(UserWarning, match="inside the phantom"):
-        prop = Propagator(geometry(), field, HALF_GAP)
+        prop = Propagator(geometry(), field, HALF_GAP, PROTON)
     assert np.any(np.abs(prop.cuts(0.0, 900.0) - (Z_PH + 100.0)) < 1e-9)
 
 
 def test_smooth_field_does_not_warn(recwarn):
-    Propagator(geometry(), UniformField(1.0), HALF_GAP)
+    Propagator(geometry(), UniformField(1.0), HALF_GAP, PROTON)
     assert len(recwarn) == 0
 
 
@@ -200,7 +200,7 @@ def test_states_at_z_out():
 def test_no_phantom_no_energy_loss_and_field_before_the_magnet():
     """Without phantom the whole vacuum before the magnet is integrated with the field."""
     g = Geometry(z_start_magnet=Z_MAG, z_length_magnet=L_MAG, spacing_after_last=100.0)
-    res = Propagator(g, UniformField(1.0), HALF_GAP).propagate(proton_state(0.0, 200.0), Z_MAG)
+    res = Propagator(g, UniformField(1.0), HALF_GAP, PROTON).propagate(proton_state(0.0, 200.0), Z_MAG)
     assert res.final.q_p == proton_state(0.0, 200.0).q_p
     assert res.final.tx < 0.0
 
@@ -208,7 +208,7 @@ def test_no_phantom_no_energy_loss_and_field_before_the_magnet():
 def test_no_magnet_with_no_field_is_a_straight_line_after_the_phantom():
     g = Geometry(z_start_phantom=Z_PH, phantom_layers=[{"material": "WATER", "thickness": L_WATER}],
                  spacing_after_last=100.0)
-    prop = Propagator(g, NoField(), HALF_GAP)
+    prop = Propagator(g, NoField(), HALF_GAP, PROTON)
     assert prop.field_is_zero(0.0, 1e9)
     s = prop.propagate(proton_state(0.0, 200.0, x=1.0, tx=0.01), g.z_end_system).final
     assert s.tx == 0.01 and s.x == pytest.approx(1.0 + 0.01 * g.z_end_system)
@@ -259,7 +259,7 @@ def test_spread_at_the_phantom_exit_matches_the_slice_covariances():
     for entry, exit_ in zip(states[:-1], states[1:]):
         dz = exit_.z - entry.z
         p_mid = 0.5 * (PROTON.charge / entry.q_p + PROTON.charge / exit_.q_p)
-        theta0 = theta0_slice(PROTON.charge / p_mid, 0.0, dz, L_WATER, WATER)
+        theta0 = theta0_slice(PROTON.charge / p_mid, 0.0, dz, L_WATER, WATER, PROTON)
         d = z_exit - exit_.z                                 # drift from the kick to the exit
         F = np.array([[1.0, d], [0.0, 1.0]])
         expected += F @ slice_covariance(theta0, 0.0, dz) @ F.T

@@ -23,7 +23,7 @@ def system(thickness=200.0):
     detectors = DetectorPlanes(g, n_before_phantom=1, n_after_phantom_before_magnet=1, n_after_magnet=1,
                                inside_phantom=False, n_inside_magnet=1)
     field = HardEdgeField(B0=1.0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
-    prop = Propagator(g, field, HALF_GAP, step=5.0, max_slice=20.0)
+    prop = Propagator(g, field, HALF_GAP, PROTON, step=5.0, max_slice=20.0)
     return prop, plane_list(detectors)
 
 

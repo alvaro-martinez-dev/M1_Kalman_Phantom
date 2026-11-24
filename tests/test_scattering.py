@@ -18,40 +18,40 @@ def q_p(T_MeV):
 # ----- theta0 ----------------------------------------------------------------------------------
 
 def test_single_slice_is_the_highland_width_of_the_layer():
-    assert theta0_slice(q_p(200.0), 0.0, 100.0, 100.0, WATER) == pytest.approx(
-        highland_width(200.0, 100.0, WATER), rel=1e-12)
+    assert theta0_slice(q_p(200.0), 0.0, 100.0, 100.0, WATER, PROTON) == pytest.approx(
+        highland_width(200.0, 100.0, WATER, PROTON), rel=1e-12)
 
 
 @pytest.mark.parametrize("n", [2, 10, 100])
 def test_slices_add_up_to_the_layer_at_constant_momentum(n):
     """The log term is evaluated for the whole layer: the result does not depend on n."""
     L = 100.0
-    theta_i = theta0_slice(q_p(200.0), 0.0, L / n, L, WATER)
-    assert np.sqrt(n) * theta_i == pytest.approx(highland_width(200.0, L, WATER), rel=1e-12)
-    assert theta_i == pytest.approx(highland_width(200.0, L, WATER, n_slices=n), rel=1e-12)
+    theta_i = theta0_slice(q_p(200.0), 0.0, L / n, L, WATER, PROTON)
+    assert np.sqrt(n) * theta_i == pytest.approx(highland_width(200.0, L, WATER, PROTON), rel=1e-12)
+    assert theta_i == pytest.approx(highland_width(200.0, L, WATER, PROTON, n_slices=n), rel=1e-12)
 
 
 def test_slower_particle_scatters_more():
-    assert theta0_slice(q_p(50.0), 0.0, 1.0, 100.0, WATER) > theta0_slice(q_p(200.0), 0.0, 1.0, 100.0, WATER)
+    assert theta0_slice(q_p(50.0), 0.0, 1.0, 100.0, WATER, PROTON) > theta0_slice(q_p(200.0), 0.0, 1.0, 100.0, WATER, PROTON)
 
 
 def test_inclined_track_crosses_more_material():
     tx = 0.3
-    straight = theta0_slice(q_p(200.0), 0.0, 10.0, 10.0, WATER)
-    inclined = theta0_slice(q_p(200.0), tx, 10.0, 10.0, WATER)
-    assert inclined == pytest.approx(highland_width(200.0, 10.0 * np.sqrt(1 + tx**2), WATER), rel=1e-12)
+    straight = theta0_slice(q_p(200.0), 0.0, 10.0, 10.0, WATER, PROTON)
+    inclined = theta0_slice(q_p(200.0), tx, 10.0, 10.0, WATER, PROTON)
+    assert inclined == pytest.approx(highland_width(200.0, 10.0 * np.sqrt(1 + tx**2), WATER, PROTON), rel=1e-12)
     assert inclined > straight
 
 
 def test_denser_material_scatters_more():
-    assert theta0_slice(q_p(200.0), 0.0, 1.0, 10.0, BONE) > theta0_slice(q_p(200.0), 0.0, 1.0, 10.0, WATER)
+    assert theta0_slice(q_p(200.0), 0.0, 1.0, 10.0, BONE, PROTON) > theta0_slice(q_p(200.0), 0.0, 1.0, 10.0, WATER, PROTON)
 
 
 def test_bad_slice_length():
     with pytest.raises(ValueError, match="dz"):
-        theta0_slice(q_p(200.0), 0.0, 20.0, 10.0, WATER)
+        theta0_slice(q_p(200.0), 0.0, 20.0, 10.0, WATER, PROTON)
     with pytest.raises(ValueError, match="dz"):
-        theta0_slice(q_p(200.0), 0.0, 0.0, 10.0, WATER)
+        theta0_slice(q_p(200.0), 0.0, 0.0, 10.0, WATER, PROTON)
 
 
 # ----- covariance and sampling -----------------------------------------------------------------

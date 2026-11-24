@@ -14,7 +14,7 @@ from scipy.integrate import quad
 from scipy.interpolate import CubicSpline
 import src.constants as constants
 from src.constants import (
-    K_BETHE, M_ELECTRON, PROTON, HIGHLAND_CONST,
+    K_BETHE, M_ELECTRON, HIGHLAND_CONST,
     Particle, Material,
 )
 
@@ -64,11 +64,15 @@ def density_effect(beta_gamma, material):
     if material.x0 is None: return 0.0
     x = np.log10(beta_gamma)
     # Vectorized Sternheimer parameterization (PDG Eq. 27.4)
+    # np.where evaluates every branch: for x > x1 the middle one would raise a negative base to the
+    # non-integer power k (NaN + RuntimeWarning, then discarded). Clipping the base at 0 gives the same
+    # values where that branch is used and avoids it (e.g. muons in the range table, up to T = 100 GeV)
+    x1_minus_x = np.maximum(material.x1 - x, 0.0)
     return np.where(
         x < material.x0, 0.0,
         np.where(
             x < material.x1,
-            (2.0 * np.log(10.0) * x - material.Cbar + material.a * (material.x1 - x) ** material.k),
+            (2.0 * np.log(10.0) * x - material.Cbar + material.a * x1_minus_x ** material.k),
             2.0 * np.log(10.0) * x - material.Cbar
         )
     )

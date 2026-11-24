@@ -6,10 +6,13 @@ Unit conversions:
     1 MeV/g = 1.602176634e-10 Gy
     1 Gy    = 1 J/kg
     "Dose in Gy for a fluence of 1 particle/cm². Multiply by your actual fluence to get the physical dose."
+
+The particle is always required (no default): forgetting it must raise an error instead of
+silently computing the dose of a proton (see src/phantom/materials.py).
 """
 import numpy as np
 
-from src.constants import Material
+from src.constants import Material, Particle
 from src.phantom.materials import E_MIN_MEV, material_object
 from src.phantom.materials import bethe_bloch, range_csda
 
@@ -17,16 +20,15 @@ from src.phantom.materials import bethe_bloch, range_csda
 MEV_PER_G_TO_GY = 1.602176634e-10
 
 
-def dose_per_length(T_MeV, material: Material, particle=None):
+def dose_per_length(T_MeV, material: Material, particle: Particle):
     """
     Dose per unit path length, D' = (1/rho) * dE/ds, in MeV/g/mm.
     """
-    kwargs = {} if particle is None else {"particle": particle}
-    dEdx = bethe_bloch(T_MeV, material, **kwargs)  # MeV/mm
+    dEdx = bethe_bloch(T_MeV, material, particle)  # MeV/mm
     return dEdx / material.density                  # MeV/g/mm
 
 
-def dose_in_step(T_MeV, step_mm, material: Material, particle=None):
+def dose_in_step(T_MeV, step_mm, material: Material, particle: Particle):
     """
     Dose deposited by a particle crossing `step_mm` of `material`
     at kinetic energy T_MeV, in Gy.
@@ -35,30 +37,25 @@ def dose_in_step(T_MeV, step_mm, material: Material, particle=None):
     (in g/cm^2 after the mm->cm conversion), and the energy lost is
     dE = (dE/dx) * step_mm. So D = dE / mass_per_area.
     """
-    kwargs = {} if particle is None else {"particle": particle}
-    dEdx = bethe_bloch(T_MeV, material, **kwargs)       # MeV/mm
+    dEdx = bethe_bloch(T_MeV, material, particle)       # MeV/mm
     dE = dEdx * step_mm                                  # MeV
     mass_per_area = material.density * step_mm * 0.1     # g/cm^2
     D_MeV_per_g = dE / mass_per_area                     # MeV/g
     return D_MeV_per_g * MEV_PER_G_TO_GY                 # Gy
 
 
-def bragg_peak_depth(T_MeV, material: Material, particle=None):
+def bragg_peak_depth(T_MeV, material: Material, particle: Particle):
     """
     Approximate depth (mm) of the Bragg peak: where the particle stops.
     Uses the CSDA range.
     """
-    kwargs = {} if particle is None else {"particle": particle}
-    return range_csda(T_MeV, material, **kwargs)
+    return range_csda(T_MeV, material, particle)
 
-def dose_profile(geometry, T0_MeV, n_steps=200, particle=None):
+def dose_profile(geometry, T0_MeV, particle: Particle, n_steps=200):
     """
     Local dose profile along z (Bragg curve).
     Returns the dose deposited in each step (Gy), NOT the cumulative dose.
     """
-    import numpy as np
-    from src.phantom.materials import E_MIN_MEV, material_object
-
     if not geometry.has_phantom:
         raise ValueError("dose_profile needs a phantom: the geometry has none (phantom disabled)")
 
@@ -82,10 +79,10 @@ def dose_profile(geometry, T0_MeV, n_steps=200, particle=None):
             D_local[i] = 0.0
             continue
         mat = material_object(mat_name)
-        
-        D_local[i] = dose_in_step(T, dz, mat, particle=particle) 
-        
-        dEdx = bethe_bloch(T, mat, particle=particle)
+
+        D_local[i] = dose_in_step(T, dz, mat, particle)
+
+        dEdx = bethe_bloch(T, mat, particle)
         T = max(T - dEdx * dz, 0.0)
 
     return z_arr, T_arr, D_local
@@ -99,7 +96,7 @@ def check_dose_limits(dose_Gy: float):
     # Public exposure limit: 1 mSv/year = 0.001 Gy
     # Occupational limit: 20 mSv/year = 0.020 Gy
     # Therapy limit (single fraction): 2 Gy
-    
+
     if dose_Gy < 0.001:
         print(f"Dose {dose_Gy:.2e} Gy is BELOW the public safety limit. Safe.")
     elif dose_Gy < 0.02:

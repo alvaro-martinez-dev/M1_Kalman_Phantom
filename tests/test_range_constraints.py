@@ -21,7 +21,7 @@ def water_transport(layers=(100.0,), z_start=50.0, step=1.0):
     g = Geometry(z_start_phantom=z_start,
                  phantom_layers=[{"material": "WATER", "thickness": t} for t in layers],
                  spacing_after_last=100.0)
-    return Transport(Propagator(g, NoField(), np.inf, step=step))
+    return Transport(Propagator(g, NoField(), np.inf, PROTON, step=step))
 
 
 def qp(T):
@@ -78,7 +78,7 @@ def test_reach_limit_is_the_csda_range(tx):
     s_star = transport.reach_limit(np.array([0.0, tx, qp(100.0)]), 50.0, 90.0, s_tol=1e-13)
     T_star = kinetic_energy(s_star, PROTON)      # s = q/p for a proton
     expected = 40.0 * np.sqrt(1.0 + tx**2) + _stop_margin(WATER, PROTON)
-    assert range_csda(T_star, WATER) == pytest.approx(expected, rel=1e-4)
+    assert range_csda(T_star, WATER, PROTON) == pytest.approx(expected, rel=1e-4)
 
 
 def test_reach_limit_with_charge_two_is_the_csda_range():

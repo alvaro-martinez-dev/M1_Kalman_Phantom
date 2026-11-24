@@ -1,11 +1,11 @@
-created: '2026-11-21T19:04:22'
-git_commit: a5afb88f61d9ab1f99733472360438b2dc13b1c8
+created: '2026-11-24T15:16:50'
+git_commit: ed68345c26c9005a741a4c8798d498d6c86b7619
 git_uncommitted_changes: true
 n_rows: 10000
 config_source: configs\config.yaml
-input: init_beam/proton_low_n100000_seed42_Beam9c63cf
-input_created: '2026-11-21T17:26:51'
-beam_hash: 9c63cf
+input: init_beam/proton_low_n100000_seed42_Beam3677df
+input_created: '2026-11-24T15:10:13'
+beam_hash: 3677df
 layout_hash: 09e691
 magnet_hash: 9eaece
 propagator_hash: b14662
@@ -74,7 +74,7 @@ geometry:
       n_inside_magnet: 1
       inside_phantom: true
 propagator:
-  input: init_beam/proton_low_n100000_seed42_Beam9c63cf
+  input: init_beam/proton_low_n100000_seed42_Beam3677df
   seed: 59
   n_max: 10000
   n_workers: null

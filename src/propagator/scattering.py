@@ -9,8 +9,9 @@
 #
 # 1. RMS projected angle of a slice (Highland), with the LOCAL momentum of the slice:
 #
-#       theta0_i^2 = (13.6 z / (beta_i p_i))^2 * (s_i / X0) * [1 + 0.038 ln(s_layer / X0)]^2
+#       theta0_i^2 = (13.6 z / (beta_i p_i))^2 * (s_i / X0) * [1 + 0.038 ln(s_layer z^2 / (X0 beta_i^2))]^2
 #
+#    (PDG form of the log term, as src.phantom.materials.highland_width.)
 #    s_i = dz_i sqrt(1 + tx^2) is the path length in the slice, s_layer the one in the whole layer.
 #    The log term is not additive, so it is evaluated for the whole layer: with a constant momentum
 #    the slices add up in quadrature to the Highland width of the layer (as highland_width with
@@ -33,14 +34,14 @@
 
 import numpy as np
 
-from src.constants import HIGHLAND_CONST, PROTON, Material, Particle
+from src.constants import HIGHLAND_CONST, Material, Particle
 from src.geometry.geometry import Geometry, TOL
 from src.utils.validation import check_real
 
 LOG_COEFF = 0.038     # coefficient of the log term of the Highland formula
 
 
-def theta0_slice(q_p, tx, dz, dz_layer, material: Material, particle: Particle = PROTON):
+def theta0_slice(q_p, tx, dz, dz_layer, material: Material, particle: Particle):
     # RMS projected scattering angle [rad] of one slice (see 1. above)
     # q_p: [e/MeV] q/p at the slice (e.g. at its entrance); tx: dx/dz at the slice
     # dz: [mm] length of the slice along z; dz_layer: [mm] length along z of the whole layer
@@ -55,8 +56,9 @@ def theta0_slice(q_p, tx, dz, dz_layer, material: Material, particle: Particle =
     path_factor = np.sqrt(1.0 + tx**2)                    # ds/dz
     s, s_layer = dz * path_factor, dz_layer * path_factor
 
-    log_term = 1.0 + LOG_COEFF * np.log(s_layer / material.X0)
-    return HIGHLAND_CONST * abs(particle.charge) / (beta * p) * np.sqrt(s / material.X0) * log_term
+    z = abs(particle.charge)
+    log_term = 1.0 + LOG_COEFF * np.log(s_layer * z**2 / (material.X0 * beta**2))
+    return HIGHLAND_CONST * z / (beta * p) * np.sqrt(s / material.X0) * log_term
 
 
 def slice_covariance(theta0, tx, dz):

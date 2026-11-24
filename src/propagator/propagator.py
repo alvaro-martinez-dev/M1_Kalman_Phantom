@@ -34,7 +34,7 @@ from functools import lru_cache
 
 import numpy as np
 
-from src.constants import PROTON, Particle
+from src.constants import Particle
 from src.geometry.geometry import Geometry, TOL
 from src.phantom.materials import BelowEnergyRange, E_MIN_MEV, material_object, range_csda, range_csda_fast
 from src.propagator.equations import eom_magnet, eom_phantom_field, propagate_free_space
@@ -101,7 +101,7 @@ class Propagator:
     # tol_qp_rel: relative local error allowed in q/p in the phantom (only if adaptive)
     # max_slice: [mm] maximum slice length for multiple scattering in the phantom (see
     #            scattering.phantom_slices), or None for no slices (no scattering possible)
-    def __init__(self, geometry: Geometry, field, x_half_gap, particle: Particle = PROTON,
+    def __init__(self, geometry: Geometry, field, x_half_gap, particle: Particle,
                  step=1.0, adaptive=False, tol_x=1e-6, tol_tx=1e-8, tol_qp_rel=1e-8, max_slice=None):
         self.geometry = geometry
         self.field = field

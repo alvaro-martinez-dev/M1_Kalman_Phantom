@@ -21,19 +21,19 @@ Q_P = PROTON.charge / momentum(230.0, PROTON)     # 230 MeV proton
 def vacuum_transport():
     # magnet present but no field: straight lines everywhere
     g = Geometry(z_start_magnet=Z_MAG, z_length_magnet=L_MAG, spacing_after_last=100.0)
-    return Transport(Propagator(g, NoField(), np.inf, step=5.0))
+    return Transport(Propagator(g, NoField(), np.inf, PROTON, step=5.0))
 
 
 def magnet_transport(central=False):
     g = Geometry(z_start_magnet=Z_MAG, z_length_magnet=L_MAG, spacing_after_last=100.0)
     field = HardEdgeField(B0=1.0, z_start=Z_MAG, z_length=L_MAG, x_half_gap=HALF_GAP)
-    return Transport(Propagator(g, field, HALF_GAP, step=5.0), central=central)
+    return Transport(Propagator(g, field, HALF_GAP, PROTON, step=5.0), central=central)
 
 
 def phantom_propagator(thickness=100.0, max_slice=20.0):
     g = Geometry(z_start_phantom=Z_PH, phantom_layers=[{"material": "WATER", "thickness": thickness}],
                  spacing_after_last=100.0)
-    return Propagator(g, NoField(), np.inf, step=5.0, max_slice=max_slice)
+    return Propagator(g, NoField(), np.inf, PROTON, step=5.0, max_slice=max_slice)
 
 
 def test_free_space_jacobian_is_the_straight_line_and_no_noise():

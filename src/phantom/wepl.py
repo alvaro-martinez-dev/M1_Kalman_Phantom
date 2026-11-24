@@ -5,10 +5,9 @@ WEPL is the thickness of water that would cause the same energy loss.
 Two approximations are provided: one based on density, one based on
 stopping-power ratios.
 """
-from src.constants import WATER
+from src.constants import WATER, Particle
 from src.geometry.geometry import Geometry
 from src.phantom.materials import material_object, bethe_bloch, range_csda_fast
-from src.constants import WATER
 
 def wepl_density(geometry: Geometry) -> float:
     """
@@ -25,7 +24,7 @@ def wepl_density(geometry: Geometry) -> float:
     return total
 
 
-def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle=None) -> float:
+def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle: Particle) -> float:
     """
     Exact WEPL definition: WEPL = R_water(T_in) - R_water(T_out).
     This is the quantity measured in proton CT. It requires finding T_out

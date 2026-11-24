@@ -1,7 +1,7 @@
 # Equations of motion for each region. Units: mm, MeV, T; q in e, q_p = q/p in e/MeV.
 import numpy as np
 
-from src.constants import KAPPA, PROTON, Particle, Material
+from src.constants import KAPPA, Particle, Material
 from src.phantom.materials import bethe_bloch
 
 
@@ -14,7 +14,7 @@ def propagate_free_space(x0, tx, z0, z1):
     return x0 + tx * (z1 - z0), tx
 
 
-def eom_magnet(field, q_p, particle: Particle = PROTON, kappa=KAPPA, x_half_gap=np.inf):
+def eom_magnet(field, q_p, particle: Particle, kappa=KAPPA, x_half_gap=np.inf):
     """x'' = f(z, x, x'); |p| is constant (no material).
 
     Used in every vacuum segment where the field may be non-zero: inside the magnet, but also
@@ -29,7 +29,7 @@ def eom_magnet(field, q_p, particle: Particle = PROTON, kappa=KAPPA, x_half_gap=
 
 # This is the eom for the phantom but assuming that there can be a remaining field from the magnet
 # still present !!!
-def eom_phantom_field(field, material: Material, particle: Particle = PROTON, kappa=KAPPA,
+def eom_phantom_field(field, material: Material, particle: Particle, kappa=KAPPA,
                       x_half_gap=np.inf):
     """y' = f(z, y) with y = (x, tx, q/p): energy loss and magnetic field at the same time.
 

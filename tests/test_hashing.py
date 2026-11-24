@@ -37,6 +37,13 @@ def test_beam_hash_covers_the_block_the_size_and_the_seed():
     assert beam_hash({**BEAM, "p0": 701.0}, 1000, 42) != h
 
 
+def test_beam_hash_ignores_the_particle():
+    # protons and muons generated alike share the Beam<h> (the species is in the folder name)
+    h = beam_hash(BEAM, 1000, 42)
+    assert beam_hash({**BEAM, "particle": "MUON_MINUS"}, 1000, 42) == h
+    assert beam_hash({**BEAM, "particle": "MUON_MINUS"}, 2000, 42) != h
+
+
 def test_magnet_hash_ignores_what_does_not_change_the_field():
     h = magnet_hash(MAGNET, 900.0)
     assert magnet_hash({**MAGNET, "B0": 0.5}, 900.0) != h

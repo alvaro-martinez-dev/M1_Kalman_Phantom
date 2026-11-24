@@ -4,7 +4,8 @@
 # of a folder says what it was generated from:
 #   same parameters -> same hash (on any computer),  any change that matters -> another hash
 #
-#   Beam<h>   beam block + n_events + seed        data/init_beam/<beam>_n<n>_seed<s>_Beam<h>
+#   Beam<h>   beam block (except the particle)    data/init_beam/<beam>_n<n>_seed<s>_Beam<h>
+#             + n_events + seed
 #   Lay<h>    geometry + detector planes          data/geometry/layout_Lay<h>_...  (src/geometry/layout.py)
 #   Magn<h>   magnet block (+ extent if interp.)  data/field/field_Magn<h>_...
 #   Prop<h>   physics options of the propagator   data/propagation/<beam>_Beam<h>_Lay<h>_Magn<h>_Prop<h>_seed<s>[_n<n>]
@@ -45,8 +46,12 @@ def canonical(obj):
 
 
 # beam_cfg: block of beams: of the yaml (particle, x0, sigma_x0, theta0, sigma_theta0, p0, sigma_p0)
+# The particle is left out on purpose: two beams of different species (e.g. protons and muons) with
+# the same kinematics, n_events and seed get the same Beam<h>, so it is seen at a glance that they
+# were generated alike. The species is still in the folder name (<beam>_...) and in the metadata.
 def beam_parameters(beam_cfg, n_events, seed):
-    return {"beam": canonical(beam_cfg), "n_events": int(n_events), "seed": int(seed)}
+    kinematics = {key: value for key, value in beam_cfg.items() if key != "particle"}
+    return {"beam": canonical(kinematics), "n_events": int(n_events), "seed": int(seed)}
 
 
 def beam_hash(beam_cfg, n_events, seed):
