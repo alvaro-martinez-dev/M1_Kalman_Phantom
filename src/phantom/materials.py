@@ -22,10 +22,10 @@ from src.constants import (
 # Bethe-Bloch formula gives MeV/cm. The project works in mm.
 MEV_PER_CM_TO_MM = 0.1  # 1 MeV/cm = 0.1 MeV/mm
 
-# Bethe-Bloch is valid for kinetic energies down to ~0.1 MeV.
+# Bethe-Bloch is valid for kinetic energies down to ~0.75 MeV.
 # Below that the approximations break and the formula can give
 # unphysical (even negative) dE/dx.
-E_MIN_MEV = 0.1
+E_MIN_MEV = 0.75
 
 
 class BelowEnergyRange(ValueError):
@@ -34,7 +34,7 @@ class BelowEnergyRange(ValueError):
     pass
 
 
-def beta_gamma(T_MeV, particle: Particle = PROTON):
+def beta_gamma(T_MeV, particle: Particle ):
     """
     Return (beta, gamma) for a particle of *kinetic* energy T_MeV (MeV).
 
@@ -43,35 +43,37 @@ def beta_gamma(T_MeV, particle: Particle = PROTON):
     T_MeV : float or array_like
         Kinetic energy in MeV.
     particle : Particle
-        Particle from src.constants (default: PROTON).
+        Particle from src.constants 
     """
     gamma = (T_MeV + particle.mass) / particle.mass
     beta = np.sqrt(1.0 - 1.0 / gamma**2)
     return beta, gamma
 
+
 def density_effect(beta_gamma, material):
     """
-    Sternheimer parameterization of the density-effect correction delta.
-
-    Returns delta (dimensionless). If the material has no Sternheimer
-    parameters (all None), returns 0 -- which is the correct limit at
-    low beta*gamma and the default for materials where it is negligible.
-
-    Reference: Sternheimer, Berger & Seltzer, Atomic Data and Nuclear
-    Data Tables 30 (1984) 261; PDG, Passage of particles through matter.
-    """
-    if material.x0 is None:
-        return 0.0
+        Sternheimer parameterization of the density-effect correction delta.
+    
+        Returns delta (dimensionless). If the material has no Sternheimer
+        parameters (all None), returns 0 -- which is the correct limit at
+        low beta*gamma and the default for materials where it is negligible.
+    
+        Reference: Sternheimer, Berger & Seltzer, Atomic Data and Nuclear
+        Data Tables 30 (1984) 261; PDG, Passage of particles through matter.
+        """
+    if material.x0 is None: return 0.0
     x = np.log10(beta_gamma)
-    if x < material.x0:
-        return 0.0
-    elif x < material.x1:
-        return (2.0 * np.log(10.0) * x - material.Cbar
-                + material.a * (material.x1 - x) ** material.k)
-    else:
-        return 2.0 * np.log(10.0) * x - material.Cbar
+    # Vectorized Sternheimer parameterization (PDG Eq. 27.4)
+    return np.where(
+        x < material.x0, 0.0,
+        np.where(
+            x < material.x1,
+            (2.0 * np.log(10.0) * x - material.Cbar + material.a * (material.x1 - x) ** material.k),
+            2.0 * np.log(10.0) * x - material.Cbar
+        )
+    )
 
-def bethe_bloch(T_MeV, material: Material, particle: Particle = PROTON):
+def bethe_bloch(T_MeV, material: Material, particle: Particle ):
     """
     Mean energy loss -dE/ds for a charged particle in `material`,
     in MeV/mm (per unit path length s).
@@ -83,7 +85,7 @@ def bethe_bloch(T_MeV, material: Material, particle: Particle = PROTON):
     material : Material
         From src.constants.
     particle : Particle
-        From src.constants (default: PROTON).
+        From src.constants 
 
     Returns
     -------
@@ -131,8 +133,8 @@ def bethe_bloch(T_MeV, material: Material, particle: Particle = PROTON):
 # It is NOT valid for electrons because bremsstrahlung dominates at high energies. 
 # Reference: PDG 2022, Passage of particles through matter.
 
-def range_csda(T_MeV, material: Material, particle: Particle = PROTON):
-    """
+def range_csda(T_MeV, material: Material, particle: Particle):
+    """"
     CSDA range of a particle in `material`, in mm.
 
     Integrates 1 / (dE/ds) from E_MIN_MEV to T_MeV using
@@ -182,7 +184,7 @@ def _range_table(material: Material, particle: Particle):
 # lru_cache + CubicSpline table: the MC propagator calls range_csda thousands of times per track,
 # so precomputing it with a cubic spline (~1e-8 error) avoids running scipy.quad at every step and keeps the simulation fast.
 
-def range_csda_fast(T_MeV, material: Material, particle: Particle = PROTON):
+def range_csda_fast(T_MeV, material: Material, particle: Particle ):
     """
     range_csda [mm] from a precomputed table (relative error ~1e-8), for the propagator, which
     needs it at every step. Outside the table (T > T_MAX_TABLE_MEV) it falls back to range_csda.
@@ -196,7 +198,7 @@ def range_csda_fast(T_MeV, material: Material, particle: Particle = PROTON):
 
 
 def highland_width(T_MeV, thickness_mm, material: Material,
-                   particle: Particle = PROTON, n_slices: int = 1):
+                   particle: Particle, n_slices: int = 1):
     """
     RMS multiple-scattering angle (rad) after crossing `thickness_mm`
     of `material`, from the Highland formula:
@@ -240,10 +242,9 @@ def highland_width(T_MeV, thickness_mm, material: Material,
 
     beta, _ = beta_gamma(T_MeV, particle)
     p_MeV = np.sqrt((T_MeV + particle.mass)**2 - particle.mass**2)
+    log_term = np.log(thickness_mm * z**2 / (material.X0 * beta**2))
     x_over_X0 = thickness_mm / material.X0
-    theta_total = (HIGHLAND_CONST / (beta * p_MeV) * z
-                   * np.sqrt(x_over_X0)
-                   * (1.0 + 0.038 * np.log(x_over_X0)))
+    theta_total = (HIGHLAND_CONST / (beta * p_MeV) * z * np.sqrt(x_over_X0) * (1.0 + 0.038 * log_term))
     return theta_total / np.sqrt(n_slices)
 
 

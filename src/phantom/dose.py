@@ -5,10 +5,12 @@ Dose is energy deposited per unit mass.
 Unit conversions:
     1 MeV/g = 1.602176634e-10 Gy
     1 Gy    = 1 J/kg
+    "Dose in Gy for a fluence of 1 particle/cm². Multiply by your actual fluence to get the physical dose."
 """
 import numpy as np
 
 from src.constants import Material
+from src.phantom.materials import E_MIN_MEV, material_object
 from src.phantom.materials import bethe_bloch, range_csda
 
 # 1 MeV/g = 1.602176634e-10 Gy
@@ -51,55 +53,33 @@ def bragg_peak_depth(T_MeV, material: Material, particle=None):
 
 def dose_profile(geometry, T0_MeV, n_steps=200, particle=None):
     """
-    Dose profile along z for a proton of initial kinetic energy T0_MeV
-    crossing the phantom described by `geometry`.
-
-    Simplified: at each step, look up the material at z, compute dE/dx,
-    deposit that dose, and update the kinetic energy. Stops when T
-    reaches E_MIN_MEV (the proton is stopped).
-
-    Returns
-    -------
-    z_arr : ndarray
-        z positions (mm) inside the phantom.
-    T_arr : ndarray
-        Kinetic energy (MeV) at each z.
-    D_cumulative : ndarray
-        Cumulative dose (Gy) up to each z.
+    Local dose profile along z (Bragg curve).
+    Returns the dose deposited in each step (Gy), NOT the cumulative dose.
     """
-    import numpy as np
-    from src.phantom.materials import E_MIN_MEV, material_object
-
-    if not geometry.has_phantom:
-        raise ValueError("dose_profile needs a phantom: the geometry has none (phantom disabled)")
-
-    z_arr = np.linspace(geometry.z_start_phantom,
-                        geometry.z_end_phantom, n_steps + 1)
-    dz = z_arr[1] - z_arr[0]
-
+    # ... (mismo inicio)
     T = float(T0_MeV)
     T_arr = np.zeros_like(z_arr)
-    D_cumulative = np.zeros_like(z_arr)
+    D_local = np.zeros_like(z_arr)  # <--- Cambia el nombre
+
     for i, z in enumerate(z_arr):
         if T <= E_MIN_MEV:
-            # Proton stopped: remaining kinetic energy is zero, and the
-            # dose already deposited is constant from here on.
             T_arr[i:] = 0.0
-            D_cumulative[i:] = D_cumulative[i - 1] if i > 0 else 0.0
+            D_local[i:] = 0.0
             break
         T_arr[i] = T
         mat_name = geometry.material_at(z)
         if mat_name is None:
-            # Outside the phantom: no dose, keep the cumulative value
-            D_cumulative[i] = D_cumulative[i - 1] if i > 0 else 0.0
+            D_local[i] = 0.0
             continue
         mat = material_object(mat_name)
-        D_cumulative[i] = D_cumulative[i - 1] if i > 0 else 0.0
-        D_cumulative[i] += dose_in_step(T, dz, mat, particle=particle)
-        dEdx = bethe_bloch(T, mat, **({} if particle is None else {"particle": particle}))
+        
+        # LA DOSIS ES SOLO EL PASO ACTUAL
+        D_local[i] = dose_in_step(T, dz, mat, particle=particle) 
+        
+        dEdx = bethe_bloch(T, mat, particle=particle)
         T = max(T - dEdx * dz, 0.0)
 
-    return z_arr, T_arr, D_cumulative
+    return z_arr, T_arr, D_local # <--- Devuelves la local
 
 def check_dose_limits(dose_Gy: float):
     """
@@ -112,9 +92,9 @@ def check_dose_limits(dose_Gy: float):
     # Therapy limit (single fraction): 2 Gy
     
     if dose_Gy < 0.001:
-        print(f"Dose {dose_Gy:.2e} Gy is BELOW the public safety limit (1 mSv/year). Safe.")
+        print(f"Dose {dose_Gy:.2e} Gy is BELOW the public safety limit. Safe.")
     elif dose_Gy < 0.02:
-        print(f"Dose {dose_Gy:.2e} Gy is within OCCUPATIONAL limits (20 mSv/year).")
+        print(f"Dose {dose_Gy:.2e} Gy is within OCCUPATIONAL limits.")
     elif dose_Gy < 2.0:
         print(f"Dose {dose_Gy:.2e} Gy is above protection limits but below a typical RADIOTHERAPY fraction (2 Gy).")
     else:

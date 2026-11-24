@@ -8,7 +8,7 @@ stopping-power ratios.
 from src.constants import WATER
 from src.geometry.geometry import Geometry
 from src.phantom.materials import material_object, bethe_bloch
-
+from src.phantom.materials import range_csda_fast, WATER
 
 def wepl_density(geometry: Geometry) -> float:
     """
@@ -25,20 +25,24 @@ def wepl_density(geometry: Geometry) -> float:
     return total
 
 
-def wepl_stopping_power(geometry: Geometry, T_MeV: float) -> float:
+def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle) -> float:
     """
-    WEPL (mm) from stopping-power ratios at kinetic energy T_MeV:
-
-        WEPL = sum_i thickness_i * (dE/dx)_i(T) / (dE/dx)_water(T)
-
-    More accurate than the density-based WEPL when the phantom materials
-    have very different Z or I. Still approximate: it does not integrate
-    the energy change along the path.
+    Exact WEPL definition: WEPL = R_water(T_in) - R_water(T_out).
+    This is the quantity measured in proton CT. It requires finding T_out
+    by subtracting the material range from T_in step by step.
     """
-    dEdx_water = bethe_bloch(T_MeV, WATER)
-    total = 0.0
+    T_current = T_in_MeV
+    
     for layer in geometry.phantom_layers:
         mat = material_object(layer["material"])
-        dEdx_mat = bethe_bloch(T_MeV, mat)
-        total += layer["thickness"] * (dEdx_mat / dEdx_water)
-    return total
+        thickness = layer["thickness"]
+        
+        # Range of the particle in the current material
+        range_in_mat = range_csda_fast(T_current, mat, particle)
+        
+        if range_in_mat <= thickness:
+            # The particle stops inside this layer. The remaining WEPL is just the water range of the current energy.
+            return range_csda_fast(T_current, WATER, particle)
+        
+        # To find T_out, we need to invert the range. Since we have a spline table, we can just find the energy that corresponds to (range_in_mat - thickness).
+        # Note: For a fast approximation, you can use a root-finding algorithm, but using the table interpolation is faster.
