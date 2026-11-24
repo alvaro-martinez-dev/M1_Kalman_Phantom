@@ -25,7 +25,7 @@ def wepl_density(geometry: Geometry) -> float:
     return total
 
 
-def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle) -> float:
+def wepl_stopping_power(geometry: Geometry, T_in_MeV: float, particle=None) -> float:
     """
     Exact WEPL definition: WEPL = R_water(T_in) - R_water(T_out).
     This is the quantity measured in proton CT. It requires finding T_out
