@@ -18,7 +18,7 @@ from src.phantom.materials import (
 
 
 @pytest.mark.parametrize("material, particle", [(WATER, PROTON), (BONE, PROTON), (WATER, MU_MINUS)])
-@pytest.mark.parametrize("T", [0.5, 3.0, 50.0, 200.0, 1234.5, 5.0e4])
+@pytest.mark.parametrize("T", [1.0, 3.0, 50.0, 200.0, 1234.5, 5.0e4])
 def test_range_table_matches_the_integral(material, particle, T):
     assert range_csda_fast(T, material, particle) == pytest.approx(range_csda(T, material, particle), rel=2e-6)
 

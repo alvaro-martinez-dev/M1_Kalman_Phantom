@@ -7,8 +7,8 @@ stopping-power ratios.
 """
 from src.constants import WATER
 from src.geometry.geometry import Geometry
-from src.phantom.materials import material_object, bethe_bloch
-from src.phantom.materials import range_csda_fast, WATER
+from src.phantom.materials import material_object, bethe_bloch, range_csda_fast
+from src.constants import WATER
 
 def wepl_density(geometry: Geometry) -> float:
     """

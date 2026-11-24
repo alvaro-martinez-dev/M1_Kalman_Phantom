@@ -56,10 +56,20 @@ def dose_profile(geometry, T0_MeV, n_steps=200, particle=None):
     Local dose profile along z (Bragg curve).
     Returns the dose deposited in each step (Gy), NOT the cumulative dose.
     """
-    # ... (mismo inicio)
+    import numpy as np
+    from src.phantom.materials import E_MIN_MEV, material_object
+
+    if not geometry.has_phantom:
+        raise ValueError("dose_profile needs a phantom: the geometry has none (phantom disabled)")
+
+    # --- ESTAS LÍNEAS FALTABAN ---
+    z_arr = np.linspace(geometry.z_start_phantom, geometry.z_end_phantom, n_steps + 1)
+    dz = z_arr[1] - z_arr[0]
+    # -----------------------------
+
     T = float(T0_MeV)
     T_arr = np.zeros_like(z_arr)
-    D_local = np.zeros_like(z_arr)  # <--- Cambia el nombre
+    D_local = np.zeros_like(z_arr)  # <--- Ahora es local, no acumulada
 
     for i, z in enumerate(z_arr):
         if T <= E_MIN_MEV:
@@ -73,13 +83,12 @@ def dose_profile(geometry, T0_MeV, n_steps=200, particle=None):
             continue
         mat = material_object(mat_name)
         
-        # LA DOSIS ES SOLO EL PASO ACTUAL
         D_local[i] = dose_in_step(T, dz, mat, particle=particle) 
         
         dEdx = bethe_bloch(T, mat, particle=particle)
         T = max(T - dEdx * dz, 0.0)
 
-    return z_arr, T_arr, D_local # <--- Devuelves la local
+    return z_arr, T_arr, D_local
 
 def check_dose_limits(dose_Gy: float):
     """
