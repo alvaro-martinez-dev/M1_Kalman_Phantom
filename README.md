@@ -234,8 +234,9 @@ input), so any track can be propagated again on its own and it is exactly the sa
 #### Multiprocessing
 
 The tracks are propagated in parallel in `propagator.n_workers` processes
-(`src/propagator/multiprocess_propagation.py`, with `concurrent.futures.ProcessPoolExecutor` of
-the standard library). The tracks are split into contiguous chunks, each process propagates its
+(`src/propagator/multiprocess_propagation.py`, on the helper `src/utils/parallel.py` that the
+Kalman fit and the Bragg report also use, with `concurrent.futures.ProcessPoolExecutor` of the
+standard library). The tracks are split into contiguous chunks, each process propagates its
 chunks and the results are joined back in order. Since each track has its own random stream, the
 output is **exactly the same** whatever the number of processes. A `tqdm` progress bar shows the
 tracks done.
@@ -561,7 +562,8 @@ M1_Kalman_Phantom/
 │   │   ├── filter.py        forward Kalman filter: range constraints on the prior, update with each hit, chi2
 │   │   ├── smoother.py      Rauch-Tung-Striebel smoother
 │   │   └── fit.py           model from the dataset metadata, beam prior, fit of many tracks (parallel)
-│   └── utils/               yaml loading, dataset save/load, hashes of the dataset names, input validation
+│   └── utils/               yaml loading, dataset save/load, hashes of the dataset names, input validation,
+│                            parallel processes (parallel.py: propagation, fit and Bragg report)
 ├── scripts/                 entry points, run as python -m scripts.<name>
 │   ├── generate_init_beam.py
 │   ├── generate_layout.py

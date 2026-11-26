@@ -144,7 +144,7 @@ def range_csda(T_MeV, material: Material, particle: Particle):
     Integrates 1 / (dE/ds) from E_MIN_MEV to T_MeV using
     scipy.integrate.quad. The integral stops at E_MIN because
     Bethe-Bloch is not valid below it; the missing piece of range
-    is < 1 um and negligible.
+    (the range at E_MIN, ~15 um in water for a proton) is neglected.
 
     Parameters
     ----------

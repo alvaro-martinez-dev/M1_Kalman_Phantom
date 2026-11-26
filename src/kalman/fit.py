@@ -40,11 +40,10 @@
 # src/kalman/constraints.py and src/kalman/filter.py. The plane after the last hit of each track is
 # found in the list of planes of the hits dataset (plane_index is the index in that list).
 #
-# fit_tracks_parallel runs the same fit in several processes (as multiprocess_propagation): the
-# tracks are independent, so the result does not depend on the number of processes.
+# fit_tracks_parallel runs the same fit in several processes (src/utils/parallel.py): the tracks are
+# independent, so the result does not depend on the number of processes.
 
 import warnings
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 import pandas as pd
@@ -54,9 +53,9 @@ from src.field import build_field
 from src.kalman.filter import run_filter
 from src.kalman.smoother import run_smoother
 from src.kalman.transport import FD_STEPS, Transport, TrackStopped
-from src.propagator.multiprocess_propagation import resolve_workers
 from src.utils.config_loader import make_geometry, make_propagator, particle_by_name
 from src.utils.dataset_io import load_dataset, load_table
+from src.utils.parallel import chunk_bounds, resolve_workers, run_chunks
 
 STATE_VARS = ("x", "tx", "q_over_p")
 # Off-diagonal pairs ((index, name), (index, name)) of the covariance stored as correlations
@@ -64,10 +63,6 @@ CORR_PAIRS = [((a, STATE_VARS[a]), (b, STATE_VARS[b])) for a in range(3) for b i
 HIT_ID_COLUMNS = ["track_id", "input_row", "event_id", "plane_index", "plane", "z", "x_meas", "sigma_x"]
 TRACK_COLUMNS = ["track_id", "input_row", "event_id", "n_hits", "status", "chi2", "ndf",
                  "range_end", "s_hi", "s_lo", "n_reach"]
-
-# Chunks per process (as multiprocess_propagation) and of a serial run (only for the progress bar)
-CHUNKS_PER_WORKER = 8
-SERIAL_CHUNKS = 200
 
 
 # beam: beam block of the yaml (x0, sigma_x0, theta0, sigma_theta0, p0, sigma_p0)
@@ -211,19 +206,6 @@ def _check_planes(planes_z, range_constraints):
                          "use them: regenerate the hits, or fit without range constraints")
 
 
-# Each worker receives the transport (propagator with its field, ~MB) once, not once per chunk
-_WORKER_ARGS = {}
-
-
-def _init_worker(transport, prior, smoother, planes_z, range_constraints):
-    _WORKER_ARGS.update(transport=transport, prior=prior, smoother=smoother, planes_z=planes_z,
-                        range_constraints=range_constraints)
-
-
-def _run_chunk(hits_chunk):
-    return fit_tracks(hits_chunk, **_WORKER_ARGS)
-
-
 # Same arguments and output as fit_tracks, plus
 # n_workers: number of processes (None: half the CPUs; 1: serial, in this process)
 # progress: show a tqdm progress bar (in tracks)
@@ -235,32 +217,19 @@ def fit_tracks_parallel(hits, transport, prior, smoother=True, n_workers=None, p
     n_tracks = len(track_ids)
     n_workers = min(resolve_workers(n_workers), max(1, n_tracks))
 
-    # Contiguous chunks of tracks, in track_id order
-    n_chunks = SERIAL_CHUNKS if n_workers == 1 else n_workers * CHUNKS_PER_WORKER
-    bounds = np.linspace(0, n_tracks, min(n_tracks, n_chunks) + 1).astype(int)
+    # Contiguous chunks of tracks, in track_id order (chunk_bounds counts tracks, not hits)
+    bounds = chunk_bounds(n_tracks, n_workers)
     by_track = hits.sort_values(["track_id", "z"], kind="stable")
     first_row = np.searchsorted(by_track["track_id"].to_numpy(), track_ids)
     row_bounds = np.append(first_row, len(by_track))[bounds]
     chunks = [by_track.iloc[a:b] for a, b in zip(row_bounds[:-1], row_bounds[1:])]
-    sizes = np.diff(bounds)
 
-    results = [None] * len(chunks)
-    bar = tqdm(total=n_tracks, unit="track", disable=not progress, dynamic_ncols=True,
-               desc="Fitting" + (f" ({n_workers} processes)" if n_workers > 1 else ""))
-    with bar:
-        if n_workers == 1:
-            for k, chunk in enumerate(chunks):
-                results[k] = fit_tracks(chunk, transport, prior, smoother=smoother, planes_z=planes_z,
-                                        range_constraints=range_constraints)
-                bar.update(sizes[k])
-        else:
-            with ProcessPoolExecutor(max_workers=n_workers, initializer=_init_worker,
-                                     initargs=(transport, prior, smoother, planes_z, range_constraints)) as pool:
-                futures = {pool.submit(_run_chunk, chunk): k for k, chunk in enumerate(chunks)}
-                for future in as_completed(futures):
-                    k = futures[future]
-                    results[k] = future.result()
-                    bar.update(sizes[k])
+    with tqdm(total=n_tracks, unit="track", disable=not progress, dynamic_ncols=True,
+              desc="Fitting" + (f" ({n_workers} processes)" if n_workers > 1 else "")) as bar:
+        results = run_chunks(fit_tracks, chunks, n_workers,
+                             dict(transport=transport, prior=prior, smoother=smoother, planes_z=planes_z,
+                                  range_constraints=range_constraints),
+                             progress=bar.update, sizes=np.diff(bounds))
 
     fits = [f for f, _ in results if not f.empty]
     fit = pd.concat(fits, ignore_index=True) if fits else pd.DataFrame()

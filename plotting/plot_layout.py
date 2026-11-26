@@ -18,7 +18,7 @@ from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 from matplotlib.patches import Patch
 
-from src.utils.dataset_io import DATA_DIR
+from src.utils.dataset_io import dataset_path
 
 
 REPORT_NAME = "report.pdf"
@@ -43,9 +43,7 @@ FILL_ALPHA = 0.3
 # Returns: (layout DataFrame, metadata dict)
 def load_layout(path):
 
-    path = Path(path)
-    if not path.is_absolute() and not path.exists():
-        path = DATA_DIR / path
+    path = dataset_path(path)
 
     # keep_default_na: the empty names/materials stay "" instead of NaN
     table = pd.read_csv(path / "layout.csv", keep_default_na=False)
@@ -213,10 +211,7 @@ def main():
     parser.add_argument("layout", help="layout folder (absolute, or relative to data/)")
     args = parser.parse_args()
 
-    path = Path(args.layout)
-    if not path.exists():
-        path = DATA_DIR / path
-
+    path = dataset_path(args.layout)
     table, metadata = load_layout(path)
     print(f"Saved report to {plot_layout(table, metadata, path / REPORT_NAME)}")
 

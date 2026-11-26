@@ -34,11 +34,12 @@ from plotting.plot_tracks import REPORT_NAME, plot_tracks
 from src.field import build_field
 from src.geometry.layout import layout_name
 from src.montecarlo.propagation import plane_list, select_tracks, selection_rng
-from src.propagator.multiprocess_propagation import propagate_tracks_parallel, resolve_workers
+from src.propagator.multiprocess_propagation import propagate_tracks_parallel
 from src.utils.config_loader import (CONFIG_DIR, get_key, load_config, make_detector_planes, make_geometry,
                                      make_propagator, particle_by_name)
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, load_dataset, save_dataset
 from src.utils.hashing import beam_hash, magnet_hash, propagator_hash
+from src.utils.parallel import resolve_workers
 
 
 def main():
@@ -130,7 +131,8 @@ def main():
         "layout_name": layout,              # data/geometry/<layout_name> if generate_layout was run on it
         "planes": [{"name": n, "z": float(z)} for n, z in planes],
         "geometry": cfg["geometry"],
-        "propagator": cfg["propagator"],
+        # the block of the yaml, with the values actually used where the command line overrides it
+        "propagator": {**cfg["propagator"], "input": str(input_path), "n_max": n_max},
     }
     out_dir = save_dataset(tracks, DATA_DIR / "propagation" / name, params,
                            overwrite=args.overwrite, tables={"states": states})

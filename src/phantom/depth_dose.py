@@ -26,7 +26,6 @@
 #
 # Units: mm, MeV; dose in Gy per (proton/cm^2).
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 
 import numpy as np
@@ -35,10 +34,8 @@ from src.geometry.geometry import TOL
 from src.montecarlo.propagation import start_state, track_rng
 from src.phantom.dose import MEV_PER_G_TO_GY, energy_from_range
 from src.phantom.materials import E_MIN_MEV, material_object, range_csda_fast
-from src.propagator.multiprocess_propagation import resolve_workers
 from src.propagator.propagator import kinetic_energy
-
-CHUNKS_PER_WORKER = 8
+from src.utils.parallel import chunk_bounds, resolve_workers, run_chunks
 
 
 @dataclass
@@ -133,8 +130,8 @@ def track_deposits(propagator, input_track, input_row, kick_seed, z_edges):
     return float(T[0]), z_stop, index, x_mid, dE
 
 
-# Deposits of a list of tracks (one chunk); args as track_deposits
-def _deposits_of(propagator, input_tracks, input_rows, kick_seed, z_edges):
+# Deposits of a list of tracks (one chunk, src/utils/parallel.py); args as track_deposits
+def _deposits_of(input_rows, propagator, input_tracks, kick_seed, z_edges):
     out = [track_deposits(propagator, input_tracks.iloc[int(r)], int(r), kick_seed, z_edges) for r in input_rows]
     T0 = np.array([o[0] for o in out])
     z_stop = np.array([o[1] for o in out])
@@ -142,17 +139,6 @@ def _deposits_of(propagator, input_tracks, input_rows, kick_seed, z_edges):
     x_mid = np.concatenate([o[3] for o in out]).astype(np.float32)
     dE = np.concatenate([o[4] for o in out])
     return T0, z_stop, index, x_mid, dE
-
-
-_WORKER_ARGS = {}
-
-
-def _init_worker(propagator, input_tracks, kick_seed, z_edges):
-    _WORKER_ARGS.update(propagator=propagator, input_tracks=input_tracks, kick_seed=kick_seed, z_edges=z_edges)
-
-
-def _run_chunk(input_rows):
-    return _deposits_of(input_rows=input_rows, **_WORKER_ARGS)
 
 
 # propagator: Propagator of the propagation (plotting.plot_tracks.rebuild_system)
@@ -170,23 +156,11 @@ def depth_dose(propagator, input_tracks, input_rows, kick_seed, dz, n_workers=No
         raise ValueError("No tracks to propagate")
     n_workers = min(resolve_workers(n_workers), n_tracks)
 
-    n_chunks = min(n_tracks, max(1, n_workers * CHUNKS_PER_WORKER))
-    chunks = np.array_split(input_rows, n_chunks)
-    results = [None] * len(chunks)
-    if n_workers == 1:
-        for k, rows in enumerate(chunks):
-            results[k] = _deposits_of(propagator, input_tracks, rows, kick_seed, z_edges)
-            if progress:
-                progress(len(rows))
-    else:
-        with ProcessPoolExecutor(max_workers=n_workers, initializer=_init_worker,
-                                 initargs=(propagator, input_tracks, kick_seed, z_edges)) as pool:
-            futures = {pool.submit(_run_chunk, rows): k for k, rows in enumerate(chunks)}
-            for future in as_completed(futures):
-                k = futures[future]
-                results[k] = future.result()
-                if progress:
-                    progress(len(chunks[k]))
+    bounds = chunk_bounds(n_tracks, n_workers)
+    chunks = [input_rows[a:b] for a, b in zip(bounds[:-1], bounds[1:])]
+    results = run_chunks(_deposits_of, chunks, n_workers,
+                         dict(propagator=propagator, input_tracks=input_tracks, kick_seed=kick_seed,
+                              z_edges=z_edges), progress=progress)
 
     T0, z_stop, index, x_mid, dE = (np.concatenate([r[j] for r in results]) for j in range(5))
     energy = np.bincount(index, weights=dE, minlength=len(z_edges) - 1)

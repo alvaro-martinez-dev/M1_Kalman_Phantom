@@ -19,7 +19,7 @@ from matplotlib.transforms import Bbox
 from scipy.stats import norm
 
 from src.utils.config_loader import get_constant
-from src.utils.dataset_io import DATA_DIR, load_dataset
+from src.utils.dataset_io import dataset_path, load_dataset
 
 
 REPORT_NAME = "report.pdf"
@@ -420,10 +420,7 @@ def main():
     parser.add_argument("dataset", help="folder of the dataset (absolute, or relative to data/)")
     args = parser.parse_args()
 
-    path = Path(args.dataset)
-    if not path.exists():
-        path = DATA_DIR / path
-
+    path = dataset_path(args.dataset)
     df, metadata = load_dataset(path)
     print(f"Saved report to {plot_init_beam(df, metadata, path / REPORT_NAME)}")
 

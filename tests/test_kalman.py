@@ -139,7 +139,7 @@ def test_parallel_fit_is_the_serial_one():
     prior = (0.0, np.array([0.0, 0.0, Q_P]), np.diag([1.0, 1e-6, 1e-10]))
 
     fit_s, tracks_s = fit_tracks(hits, vacuum_transport(), prior)
-    fit_p, tracks_p = fit_tracks_parallel(hits, vacuum_transport(), prior, n_workers=1, progress=False)
+    fit_p, tracks_p = fit_tracks_parallel(hits, vacuum_transport(), prior, n_workers=2, progress=False)
     pd.testing.assert_frame_equal(fit_s, fit_p)
     pd.testing.assert_frame_equal(tracks_s, tracks_p)
     assert (tracks_s["status"] == "ok").all() and (tracks_s["ndf"] == len(planes)).all()

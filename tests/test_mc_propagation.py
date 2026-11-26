@@ -174,3 +174,17 @@ def test_dataset_with_an_extra_table(tmp_path):
     assert metadata["seed"] == 2
     with pytest.raises(ValueError, match="tracks"):
         save_dataset(tracks, tmp_path / "bad", {}, tables={"tracks": states})
+
+
+def test_parallel_propagation_is_the_serial_one():
+    """2 processes give exactly the serial result (each track has its own random stream), with
+    track_id renumbered as in the serial run; some tracks stop in the phantom."""
+    from src.propagator.multiprocess_propagation import propagate_tracks_parallel
+    prop, planes = system()
+    tracks_in = beam([150.0, 400.0, 220.0, 400.0, 180.0, 300.0])
+    states_s, tracks_s = propagate_tracks_parallel(tracks_in, prop, planes, 7, n_workers=1, progress=False)
+    states_p, tracks_p = propagate_tracks_parallel(tracks_in, prop, planes, 7, n_workers=2, progress=False)
+    pd.testing.assert_frame_equal(states_s, states_p)
+    pd.testing.assert_frame_equal(tracks_s, tracks_p)
+    assert tracks_s["track_id"].tolist() == list(range(len(tracks_in)))
+    assert tracks_s["stopped"].any() and not tracks_s["stopped"].all()

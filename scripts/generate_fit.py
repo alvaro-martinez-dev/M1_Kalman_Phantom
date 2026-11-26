@@ -31,10 +31,10 @@ import numpy as np
 from plotting.plot_fit import REPORT_NAME, plot_fit
 from src.kalman.fit import fit_tracks_parallel, load_model
 from src.kalman.transport import FD_STEPS
-from src.propagator.multiprocess_propagation import resolve_workers
 from src.utils.config_loader import CONFIG_DIR, get_key, load_config
 from src.utils.dataset_io import DATA_DIR, REPO_ROOT, save_dataset
 from src.utils.hashing import kalman_hash
+from src.utils.parallel import resolve_workers
 from src.utils.validation import check_bool, check_count
 
 
