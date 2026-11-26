@@ -1,15 +1,15 @@
-created: '2026-11-24T15:58:59'
-git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
+created: '2026-11-26T19:26:38'
+git_commit: 8c808c9d9e4f025b05777f9ca017648819034c73
 git_uncommitted_changes: true
 n_rows: 10000
 config_source: configs\config.yaml
-input: data\hits\proton_low_Beam3677df_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70
-input_created: '2026-11-24T15:50:03'
-input_git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
+input: hits/proton_low_Beam3677df_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70
+input_created: '2026-11-26T19:07:22'
+input_git_commit: 8c808c9d9e4f025b05777f9ca017648819034c73
 propagation:
-  input: propagation\proton_low_Beam3677df_Lay09e691_Magn9eaece_Propb14662_seed59_n10000
-  created: '2026-11-24T15:49:03'
-  git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
+  input: propagation/proton_low_Beam3677df_Lay09e691_Magn9eaece_Propb14662_seed59_n10000
+  created: '2026-11-26T19:06:42'
+  git_commit: 8c808c9d9e4f025b05777f9ca017648819034c73
   seed: 59
   layout_name: layout_Lay09e691_11Det_3Layers_2PhDet_1MagDet
   beam_hash: 3677df
@@ -77,5 +77,5 @@ n_range_bounded: 10000
 n_safety_net: 0
 n_hits: 24703
 chi2_ndf_mean: 0.9930715430893815
-time_s: 242.8
+time_s: 488.0
 n_workers: 8

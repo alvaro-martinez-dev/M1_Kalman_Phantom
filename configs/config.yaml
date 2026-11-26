@@ -178,7 +178,7 @@ propagator:
 
 hits:
   # Measurement on each detector plane (scripts/generate_hits.py): x_meas = x_true + N(0, sigma_x)
-  input: propagation\proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000   # propagation dataset, relative to data/
+  input: propagation/proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000   # propagation dataset, relative to data/
   seed: 70                    # seed for the measurement errors; must differ from the seed of the input
   sigma_x: 0.1                # [mm] resolution of every plane
 
@@ -190,7 +190,7 @@ hits:
 kalman:
   # Kalman fit of the hits (scripts/generate_fit.py). The model of the fit (geometry, field,
   # propagator and the beam as prior) is read from the metadata of the datasets, not from this yaml
-  input: hits\proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
+  input: hits/proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
   n_max: null                 # fit only the first n tracks of the input (null: all of them)
   smoother: true              # also run the RTS smoother after the filter (both are saved)
   central_differences: false  # Jacobians by central differences (slower) instead of forward ones

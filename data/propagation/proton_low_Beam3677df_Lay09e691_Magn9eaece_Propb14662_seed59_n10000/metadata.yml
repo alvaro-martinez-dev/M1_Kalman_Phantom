@@ -1,5 +1,5 @@
-created: '2026-11-24T15:49:03'
-git_commit: 524ae94b0c084c8cc674ed062bebdae7e923f491
+created: '2026-11-26T19:06:42'
+git_commit: 8c808c9d9e4f025b05777f9ca017648819034c73
 git_uncommitted_changes: true
 n_rows: 10000
 config_source: configs\config.yaml
@@ -74,7 +74,7 @@ geometry:
       n_inside_magnet: 1
       inside_phantom: true
 propagator:
-  input: init_beam/proton_low_n100000_seed42_Beam3677df
+  input: init_beam/proton_n100000_seed42_Beame55ace
   seed: 59
   n_max: 10000
   n_workers: null

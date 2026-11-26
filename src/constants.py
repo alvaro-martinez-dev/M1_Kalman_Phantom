@@ -115,10 +115,11 @@ class Material:
     a: float | None = None
     k: float | None = None
 
+# PDG tables https://pdg.lbl.gov/2023/AtomicNuclearProperties/index.html
 WATER = Material(
     "water", 1.0, 0.55509, 75e-6, 360.8,
-    x0=0.2400, x1=2.800, Cbar=3.477, a=0.09116, k=3.477)
-BONE = Material("bone", 1.85, 0.5213, 106.4e-6, 106.0)
+    x0=0.2400, x1=2.800, Cbar=3.5017, a=0.09116, k=3.477)
+BONE = Material("bone", 1.85, 0.5213, 106.4e-6, 148.20)  # Bone ICRU (cortical)
 LEAD = Material(
-    "lead", 11.34, 0.39575, 823e-6, 5.612,
+    "lead", 11.35, 0.39575, 823e-6, 5.612,
     x0=0.3776, x1=3.8073, Cbar=-6.2018, a=0.09359, k=5.216)

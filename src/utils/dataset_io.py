@@ -77,6 +77,10 @@ def save_dataset(df, out_dir, params, overwrite=False, tables=None):
 
 
 def dataset_path(path):
+    # A path typed on Windows ("propagation\<name>", e.g. in the yaml or copied into a metadata.yml)
+    # is a single file name on Linux/macOS: normalise the separators so the datasets load on any OS
+    if isinstance(path, str):
+        path = path.replace("\\", "/")
     path = Path(path)
     if not path.is_absolute() and not path.exists():
         path = DATA_DIR / path

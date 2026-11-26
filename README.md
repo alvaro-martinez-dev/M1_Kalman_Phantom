@@ -554,16 +554,18 @@ so any result can be traced back to the code and config that produced it.
 - E. Lund et al., *Track parameter propagation through the application of
   a new adaptive Runge-Kutta-Nyström method in the ATLAS experiment*,
   JINST 4 (2009) P04001.
-- Zeltkevic, M. (1998, April 15). Runge-Kutta methods. Course 10.001 Notes
+- Zeltkevic, M. (1998, April 15). *Runge-Kutta methods*. Course 10.001 Notes
   Massachusetts Institute of Technology. Retrieved from https://web.mit.edu/10.001/Web/Course_Notes/Differential_Equations_Notes/node5.html
-- V. D. Elvira, “Impact of detector simulation in particle physics collider 
-  experiments highlights”, EPJ Web Conf. 214, 02019 (2019). doi:10.1051/epjconf/201921402019
+- V. D. Elvira, *Impact of detector simulation in particle physics collider experiments highlights*, 
+  EPJ Web Conf. 214, 02019 (2019). doi:10.1051/epjconf/201921402019
 - S. Navas et al. (Particle Data Group), *Review of Particle Physics*,
   Phys. Rev. D 110 (2024) 030001. See the reviews *Passage of particles
   through matter* and *Kinematics*.
-- G. R. Lynch and O. I. Dahl, *Approximations to multiple Coulomb
-  scattering*, Nucl. Instrum. Meth. B 58 (1991) 6.
+- Particle Data Group, *Atomic and Nuclear Properties of Materials*. Retrieved from 
+  https://pdg.lbl.gov/2026/AtomicNuclearProperties/
 - NIST PSTAR database, *Stopping-power and range tables for protons*,
   https://physics.nist.gov/PhysRefData/Star/Text/PSTAR.html
-- M. Raissi, P. Perdikaris and G. E. Karniadakis, *Physics-informed neural
-  networks*, J. Comput. Phys. 378 (2019) 686.
+- G. R. Lynch and O. I. Dahl, *Approximations to multiple Coulomb scattering*, 
+  Nucl. Instrum. Meth. B 58 (1991) 6.
+- M. Raissi, P. Perdikaris and G. E. Karniadakis, *Physics-informed neural networks*, 
+  J. Comput. Phys. 378 (2019) 686.
