@@ -122,4 +122,4 @@ WATER = Material(
 BONE = Material("bone", 1.85, 0.5213, 106.4e-6, 148.20)  # Bone ICRU (cortical)
 LEAD = Material(
     "lead", 11.35, 0.39575, 823e-6, 5.612,
-    x0=0.3776, x1=3.8073, Cbar=-6.2018, a=0.09359, k=5.216)
+    x0=0.3776, x1=3.8073, Cbar=6.2018, a=0.09359, k=3.1608)   # PDG; delta(x0) = 0.14 (continuity)

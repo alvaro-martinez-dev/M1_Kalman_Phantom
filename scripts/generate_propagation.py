@@ -16,6 +16,8 @@
 #                   folder generate_layout would write for this geometry) and the geometry/field/
 #                   propagator blocks used
 #   tracks_on_layout.pdf: a few tracks drawn on the system, if run.plot is true (plotting/plot_tracks.py)
+#   bragg.pdf:      Bragg curve and dose in the phantom, if run.plot is true and there is a phantom
+#                   (plotting/plot_bragg.py, with the propagator.bragg block of the yaml)
 #
 # Usage (from the repo root):
 #   python -m scripts.generate_propagation                       # uses configs/config.yaml
@@ -27,6 +29,7 @@
 import argparse
 from pathlib import Path
 
+from plotting.plot_bragg import plot_bragg
 from plotting.plot_tracks import REPORT_NAME, plot_tracks
 from src.field import build_field
 from src.geometry.layout import layout_name
@@ -133,13 +136,20 @@ def main():
                            overwrite=args.overwrite, tables={"states": states})
     print(f"Saved {len(tracks)} tracks ({params['n_stopped']} stopped) and {len(states)} plane states to {out_dir}")
 
-    # 5. Plot (the dataset is already saved: a failure here does not lose it)
+    # 5. Plots (the dataset is already saved: a failure here does not lose it)
     if cfg["run"].get("plot", False) if args.plot is None else args.plot:
         try:
             print(f"Saved plot to {plot_tracks(out_dir)}")
         except Exception as error:
             print(f"WARNING: plot not generated ({error!r}). To retry:\n"
                   f"  python -m plotting.plot_tracks {out_dir}")
+        # Bragg curve and dose (only with a phantom), with the propagator.bragg block now in the metadata
+        if geometry.has_phantom:
+            try:
+                print(f"Saved Bragg report to {plot_bragg(out_dir, n_workers=n_workers)}")
+            except Exception as error:
+                print(f"WARNING: Bragg report not generated ({error!r}). To retry:\n"
+                      f"  python -m plotting.plot_bragg {out_dir}")
 
 
 if __name__ == "__main__":

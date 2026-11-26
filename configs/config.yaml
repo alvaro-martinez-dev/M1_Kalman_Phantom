@@ -170,6 +170,14 @@ propagator:
     max_slice: 5.0            # [mm] maximum slice length; each layer is cut into equal slices
                               # (never across an interface), one kick at the end of each
 
+  bragg:                      # bragg.pdf of the propagation, written after it if run.plot is true
+                              # (plotting/plot_bragg.py): its tracks are propagated again through the
+                              # phantom on a fine grid of z (same random streams: the same tracks) and
+                              # the energy they lose is deposited along z and x. Not part of the Prop hash
+    n_tracks: 2000            # first n tracks of the dataset (a random sample of the beam); null: all
+    dz: 0.25                  # [mm] depth bins (each layer cut into equal bins, nodes at the interfaces)
+    dx: 0.5                   # [mm] x bins of the (z, x) map
+
 
 # ---------------------------------------------------------------------------------
 # ------------------ Hits on detectors --------------------------------------------

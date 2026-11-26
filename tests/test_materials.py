@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from src.phantom.materials import density_effect, beta_gamma
 from src.constants import (
-    WATER, BONE, PROTON, Particle,
+    WATER, BONE, LEAD, PROTON, Particle,
 )
 
 # Not used by the simulation (commented out in src/constants.py), only to test Bethe-Bloch here
@@ -135,6 +135,16 @@ def test_highland_additivity():
     theta_step = highland_width(200.0, x, WATER, PROTON, n_slices=n)
     combined = np.sqrt(n) * theta_step
     assert np.isclose(combined, theta_total, rtol=1e-12)
+
+
+@pytest.mark.parametrize("material, delta0", [(WATER, 0.0), (LEAD, 0.14)])
+def test_density_effect_is_continuous(material, delta0):
+    """Sternheimer: delta is continuous at x0 (where it is delta0, PDG: 0 for water, 0.14 for lead)
+    and at x1. Catches a wrong sign of Cbar or a wrong k."""
+    bg0, bg1 = 10.0**material.x0, 10.0**material.x1
+    assert float(density_effect(bg0 * (1 + 1e-9), material)) == pytest.approx(delta0, abs=0.02)
+    below, above = density_effect(bg1 * (1 - 1e-9), material), density_effect(bg1 * (1 + 1e-9), material)
+    assert float(below) == pytest.approx(float(above), abs=1e-6)
 
 
 def test_density_effect_zero_at_low_energy():

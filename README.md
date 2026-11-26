@@ -213,6 +213,8 @@ The output goes to `data/propagation/<beam>_Beam<h>_Lay<h>_Magn<h>_Prop<h>_seed<
   trajectory plus their true state at each plane, if `run.plot` is `true`. Along each track,
   ⊙ / ⊗ mark the field it crosses: B_y > 0 (out of the page) / B_y < 0 (into the page), with
   size growing with |B_y| (only where |B_y| > 5 % of B0)
+- `bragg.pdf`: Bragg curve and dose in the phantom, if `run.plot` is `true` and there is a phantom
+  (see step (7))
 
 The geometry is the `geometry` block of the yaml, as in step (3). The layout folder of step (3)
 is not needed: the plot rebuilds the schematic from the metadata of the dataset, so the tracks
@@ -428,6 +430,41 @@ python -m plotting.plot_fit fit/<hits name>_Kal<hash>
 Options: `--n-tracks <n>` (tracks of the last page, default 3), `--seed <n>` (their choice,
 default 0), `--out <pdf>`.
 
+### (7) Bragg curve and dose of a propagation
+
+Written by step (4) after each propagation, if `run.plot` is `true` and there is a phantom. To redo
+it for an existing propagation (or with other values):
+
+```bash
+python -m plotting.plot_bragg propagation/<name>
+```
+
+It propagates the first `propagator.bragg.n_tracks` tracks of the dataset again through the phantom,
+with the state on a grid of `propagator.bragg.dz` mm in z (`src/phantom/depth_dose.py`). The
+`propagator.bragg` block is kept in the metadata of the propagation, so redoing the report uses the
+same values; it is not part of the `Prop<h>` hash (it does not change the propagation). Each track has its own random stream, so these are exactly the tracks
+of the dataset (same kicks); they are only followed up to the end of the phantom. The energy each
+one loses between two nodes of the grid is deposited in that bin, and a proton that stops deposits
+there all its remaining energy (so the energy is conserved exactly). Nothing is stored in the
+dataset but the report: the state on a fine grid would be tens of MB per dataset.
+
+`bragg.pdf`, in the propagation folder:
+
+1. Depth-dose (Bragg) curve of the Monte Carlo against the analytic CSDA curve of one proton of the
+   mean beam energy along z (`src/phantom/dose.py:dose_profile`), with the layers of the phantom and
+   the kinetic energy remaining, T(z), which decreases with depth: the slower the proton, the more
+   energy it loses per mm, so the dose grows up to the peak, where it stops.
+   The dose is that of a broad beam of unit fluence, in Gy per proton/cm². The Monte Carlo adds the
+   energy spread of the beam and the multiple scattering. Both are CSDA: no straggling and no nuclear
+   interactions, so the peak is sharper than a measured one. Protons that cross the phantom only give
+   the entrance region of the curve (no peak)
+2. Energy deposited in the (z, x) plane, and lateral profiles from the entrance to the peak
+3. Depth where the protons stop, against the CSDA range and the spread expected from the energy
+   spread of the beam alone
+
+Options (override `propagator.bragg`): `--n-tracks <n>`, `--dz <mm>`, `--dx <mm>` (bins in x of
+the map), `--workers <n>`, `--out <pdf>`. About 45 s for 2000 tracks with 8 processes.
+
 ### Dataset names
 
 Every folder of `data/` is named after the parameters it was generated from, through short
@@ -480,7 +517,7 @@ python -m pytest -q tests/test_geometry.py
 ```
 M1_Kalman_Phantom/
 ├── configs/
-│   └── config.yaml          all the parameters: run, beams, geometry, propagator, hits, kalman
+│   └── config.yaml          all the parameters: run, beams, geometry, propagator, hits, kalman, bragg
 ├── src/                     main code (importable as src.*)
 │   ├── constants.py         the proton, materials, physical constants
 │   ├── geometry/            layout along z
@@ -488,7 +525,8 @@ M1_Kalman_Phantom/
 │   │   ├── detectors.py     position of the detector planes
 │   │   └── layout.py        table of boundaries + detector planes
 │   ├── field/               magnetic field models (hard edge, Biot-Savart, interpolated, no field)
-│   ├── phantom/             energy loss (Bethe-Bloch), CSDA range, Highland width, dose
+│   ├── phantom/             energy loss (Bethe-Bloch), CSDA range, Highland width, dose, WEPL,
+│   │                        depth-dose of the Monte Carlo (depth_dose.py)
 │   ├── propagator/          track propagation along z
 │   │   ├── propagator.py    region by region: straight line / RKN in vacuum, RK in the phantom
 │   │   ├── equations.py     equations of motion of each region
@@ -514,7 +552,7 @@ M1_Kalman_Phantom/
 │   └── check_field.py
 ├── scans/                   standalone studies of the field model (Biot-Savart, filaments, interpolation dz...)
 ├── plotting/                pdf reports of the generated data (plot_init_beam, plot_layout, plot_tracks, plot_hits,
-│                            plot_fit)
+│                            plot_fit, plot_bragg)
 ├── data/                    generated outputs, one folder per run
 │   ├── init_beam/           <beam>_n<n_events>_seed<seed>_Beam<h>/: tracks.parquet, metadata.yml, report.pdf
 │   ├── geometry/            layout_Lay<h>_<n>Det_<m>Layers_<p>PhDet_<k>MagDet/: layout.csv, metadata.yml, report.pdf
