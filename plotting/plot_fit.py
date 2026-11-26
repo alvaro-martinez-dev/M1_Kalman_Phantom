@@ -17,6 +17,15 @@
 #      filter before the magnet is almost the prior for every track (a spike: its peak is cut and
 #      the panel says so)
 #   4. chi2 of the tracks against chi2(ndf), and its probability against a flat distribution
+#   4b. Innovations of the filter, r / sqrt(S) (predicted residuals, the terms of the chi2): the only
+#      test that does not need the MC truth, so the one that could be made on real data.
+#      Per plane: mean and std against 0 and 1 (the chi2 of the track sums them over the planes, where
+#      a plane too wide and another too narrow compensate each other).
+#      Whiteness: with a right model (F, Q, V) the innovations of a track are independent, so the
+#      correlation r between those of two planes, over the tracks, is 0 within 1/sqrt(n): r sqrt(n) ~
+#      N(0, 1) and the sum of its squares over the pairs of planes ~ chi2(pairs). It sees a wrong F or Q
+#      (e.g. scattering in the wrong place) even when the variances look right (Bar-Shalom, Li and
+#      Kirubarajan, Estimation with Applications to Tracking and Navigation, Wiley 2001, sec. 5.4)
 #   5. NEES = (fit - true)^T C^-1 (fit - true) against chi2(3): tests the whole covariance, also the
 #      correlations that the pulls do not see. Histogram at one plane per track, and mean per plane
 #      (only for fits that store the correlations, corr_* columns of src/kalman/fit.py)
@@ -277,6 +286,94 @@ def page_chi2(tracks, metadata):
                  f"histogram vs flat: $\\chi^2$/ndof = {c2:.1f}/{nd} = {c2 / max(nd, 1):.2f}",
                  fontsize=8, color=COLOR_TEXT, loc="left")
     ax.set_ylim(0, None)
+    return fig
+
+
+# Correlation between the innovations of every pair of planes, over the tracks that have both
+# df: rows with an "innovation" column (r / sqrt(S)), one per (track, plane)
+# Returns: (r, n), (n_planes, n_planes) arrays: Pearson correlation (NaN on the diagonal and for pairs
+#          with fewer than 3 tracks) and number of tracks with both planes
+def innovation_correlations(df, n_planes):
+
+    wide = df.pivot(index="track_id", columns="plane_index", values="innovation")
+    v = wide.reindex(columns=range(n_planes)).to_numpy()
+    r = np.full((n_planes, n_planes), np.nan)
+    n = np.zeros((n_planes, n_planes), dtype=int)
+    for i in range(n_planes):
+        for j in range(i + 1, n_planes):
+            both = np.isfinite(v[:, i]) & np.isfinite(v[:, j])
+            n[i, j] = n[j, i] = both.sum()
+            if both.sum() >= 3:
+                r[i, j] = r[j, i] = np.corrcoef(v[both, i], v[both, j])[0, 1]
+    return r, n
+
+
+# Page of the innovations of the filter (see 4b in the header). Top: mean and std of r / sqrt(S) per
+# plane. Bottom: correlation matrix between planes, and r sqrt(n) of each pair against the distance
+# between the two planes
+def page_innovations(df, metadata):
+
+    fig = new_page("Innovations of the filter r / √S: per plane and whiteness (no MC truth needed)", metadata,
+                   True)
+    planes = metadata["planes"]
+    n_planes = len(planes)
+    index = np.arange(n_planes)
+    color = STAGES["filt"][1]
+    grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.5])
+
+    # Per plane: mean (expected 0) and std (expected 1)
+    s = per_plane(df, "innovation", n_planes)
+    for col, (stat, expected, ylabel) in enumerate((("mean", 0.0, "Mean of r / √S"),
+                                                    ("std", 1.0, "Std of r / √S"))):
+        ax = fig.add_subplot(grid[0, col])
+        style_axes(ax)
+        ax.errorbar(index, s[stat], yerr=s[f"{stat}_err"], fmt="o", markersize=MARKER_SIZE, color=color)
+        ax.axhline(expected, color=COLOR_EXPECTED, linewidth=1.5)
+        ax.set_title(f"{ylabel} per plane (expected {expected:g})\n"
+                     + chi2_text(s[stat], s[f"{stat}_err"], expected), fontsize=8, color=COLOR_TEXT, loc="left")
+        ax.set_ylabel(ylabel, fontsize=9, color=COLOR_MUTED)
+        plane_axis(ax, planes, narrow=True)
+
+    # Whiteness: correlation between planes. Under independence r sqrt(n) ~ N(0, 1) for each pair
+    r, n = innovation_correlations(df, n_planes)
+    upper = np.triu(np.isfinite(r), k=1)
+    z = np.where(upper, r * np.sqrt(n), np.nan)
+    n_pairs = int(upper.sum())
+    chi2 = float(np.nansum(z**2))
+    names = [p["name"] for p in planes]
+
+    ax = fig.add_subplot(grid[1, 0])
+    if n_pairs:
+        typical = 1.0 / np.sqrt(np.median(n[upper]))
+        limit = max(np.nanmax(np.abs(r)), 3.0 * typical)
+        image = ax.imshow(r, cmap="RdBu_r", vmin=-limit, vmax=limit)
+        for i, j in zip(*np.nonzero(np.isfinite(r))):
+            ax.text(j, i, f"{int(round(100 * r[i, j]))}", ha="center", va="center", fontsize=5, color=COLOR_TEXT)
+        fig.colorbar(image, ax=ax, shrink=0.85).ax.tick_params(labelsize=7, colors=COLOR_MUTED)
+        ax.set_title(f"Correlation between planes, ×100 in the cells (expected 0)\n"
+                     f"statistical error 1/√n ≈ {typical:.3f}", fontsize=8, color=COLOR_TEXT, loc="left")
+    else:
+        ax.text(0.5, 0.5, "No pair of planes with tracks in both", ha="center", va="center", color=COLOR_MUTED)
+    ax.set_xticks(index, names, rotation=60, ha="right", rotation_mode="anchor")
+    ax.set_yticks(index, names)
+    ax.tick_params(labelsize=6, colors=COLOR_MUTED, length=2)
+
+    ax = fig.add_subplot(grid[1, 1])
+    style_axes(ax)
+    if n_pairs:
+        i, j = np.nonzero(upper)
+        ax.axhspan(-2.0, 2.0, color=COLOR_AXIS, alpha=0.4, linewidth=0, label="±2 (95 % of the pairs)")
+        ax.axhline(0.0, color=COLOR_EXPECTED, linewidth=1.5)
+        ax.plot(j - i, z[i, j], "o", markersize=MARKER_SIZE, color=color, label="Pair of planes")
+        outside = np.mean(np.abs(z[i, j]) > 2.0)
+        ax.set_title(f"r √n of each pair of planes (expected N(0, 1))\n"
+                     f"$\\sum (r\\sqrt{{n}})^2$ = {chi2:.1f} for {n_pairs} pairs: "
+                     f"$\\chi^2$/ndof = {chi2 / n_pairs:.2f}, P = {chi2_dist.sf(chi2, n_pairs):.3f}\n"
+                     f"{100 * outside:.0f} % of the pairs outside ±2 (expected 5 %)",
+                     fontsize=8, color=COLOR_TEXT, loc="left")
+        ax.legend(loc="upper right", fontsize=7, frameon=False)
+    ax.set_xlabel("Distance between the two planes (in planes)", fontsize=9, color=COLOR_TEXT)
+    ax.set_ylabel("r √n", fontsize=9, color=COLOR_MUTED)
     return fig
 
 
@@ -565,6 +662,7 @@ def plot_fit(fit_dir, out_path=None, n_tracks=N_EXAMPLE_TRACKS, seed=0):
         raise ValueError(f"{fit_dir} has no fitted tracks")
     stages = ["filt", "smooth"] if metadata["smoother"] else ["filt"]
     df = mark_stopping(fit_with_truth(fit, metadata, stages), tracks)
+    df["innovation"] = df["res_pred"] / df["res_pred_err"]     # r / sqrt(S) of the filter (page 4b)
     main = df[~df["last_of_stop"]]        # see the header
 
     sample = one_per_track(main, seed)
@@ -574,6 +672,7 @@ def plot_fit(fit_dir, out_path=None, n_tracks=N_EXAMPLE_TRACKS, seed=0):
     pages += [page_fit_vs_true(main, metadata, stages, element, names)
               for element, names in FIT_VS_TRUE_PAGES.items()]
     pages.append(page_chi2(tracks, metadata))
+    pages.append(page_innovations(main, metadata))
     if has_correlations(df, stages):
         pages.append(page_nees(main, sample, metadata, stages))
     else:
