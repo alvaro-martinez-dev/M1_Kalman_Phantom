@@ -80,6 +80,36 @@ def test_wepl_stopping_power_close_to_density(layered_phantom):
     assert abs(wepl_s - wepl_d) / wepl_d < 0.15
 
 
+def test_wepl_from_energies_matches_the_range_definition():
+    """With T_out the CSDA exit energy, the WEPL from the two energies is wepl_range_definition."""
+    from src.phantom.wepl import wepl_from_energies, wepl_range_definition
+    g = Geometry(z_start_phantom=50.0, phantom_layers=[{"material": "WATER", "thickness": 50.0},
+                                                       {"material": "BONE", "thickness": 20.0},
+                                                       {"material": "WATER", "thickness": 50.0}])
+    T_in = 232.0
+    z, T, _ = dose_profile(g, T_in, PROTON, n_steps=10)
+    assert wepl_from_energies(T_in, T[-1], PROTON) == pytest.approx(wepl_range_definition(g, T_in, PROTON), rel=1e-6)
+    # arrays, element by element
+    both = wepl_from_energies(np.array([T_in, 150.0]), np.array([T[-1], 100.0]), PROTON)
+    assert both.shape == (2,) and both[1] == pytest.approx(range_csda(150.0, WATER, PROTON) - range_csda(100.0, WATER, PROTON), rel=1e-6)
+
+
+def test_wepl_of_water_is_its_thickness():
+    from src.phantom.wepl import wepl_from_energies
+    water = Geometry(z_start_phantom=0.0, phantom_layers=[{"material": "WATER", "thickness": 80.0}])
+    z, T, _ = dose_profile(water, 200.0, PROTON, n_steps=10)
+    assert wepl_from_energies(200.0, T[-1], PROTON) == pytest.approx(80.0, rel=1e-6)
+
+
+def test_wepl_error_is_the_derivative_of_the_range():
+    """sigma_WEPL = sigma_T / S_water(T) = sigma_T dR/dT."""
+    from src.phantom.wepl import wepl_error
+    for T in (60.0, 230.0):
+        h = 1e-3
+        dR_dT = (range_csda(T + h, WATER, PROTON) - range_csda(T - h, WATER, PROTON)) / (2 * h)
+        assert wepl_error(T, 2.0, PROTON) == pytest.approx(2.0 * dR_dT, rel=1e-4)
+
+
 def test_dose_profile_monotonic_energy(layered_phantom):
     z_arr, T_arr, D_arr = dose_profile(layered_phantom, T0_MeV=200.0, particle=PROTON, n_steps=200)
     assert np.all(np.diff(T_arr) <= 1e-9)

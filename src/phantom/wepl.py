@@ -5,6 +5,8 @@ WEPL is the thickness of water that would cause the same energy loss.
 Two approximations are provided: one based on density, one based on
 stopping-power ratios.
 """
+import numpy as np
+
 from src.constants import WATER, Particle
 from src.geometry.geometry import Geometry
 from src.phantom.materials import material_object, bethe_bloch, range_csda_fast
@@ -77,5 +79,19 @@ def wepl_range_definition(geometry: Geometry, T_in_MeV: float, particle) -> floa
     # WEPL is the difference between the water range of the initial and final energy.
     R_water_in = range_csda_fast(T_MeV, WATER, particle)
     R_water_out = range_csda_fast(T_current, WATER, particle)
-    
+
     return R_water_in - R_water_out
+
+
+# WEPL [mm] of a proton from its kinetic energies at the entrance and exit of the phantom, as measured in
+# proton CT: R_water(T_in) - R_water(T_out). T_in, T_out: [MeV] scalars or arrays of the same shape
+def wepl_from_energies(T_in, T_out, particle):
+    def r_water(T):
+        return np.array([range_csda_fast(float(t), WATER, particle) for t in np.ravel(T)]).reshape(np.shape(T))
+    return r_water(T_in) - r_water(T_out)
+
+
+# Error [mm] that an error sigma_T [MeV] in the energy T [MeV] gives in R_water(T) (and so in the WEPL):
+# dR/dT = 1 / S_water(T), with S = dE/dx the stopping power (Bethe-Bloch). Scalars or arrays
+def wepl_error(T, sigma_T, particle):
+    return np.asarray(sigma_T) / bethe_bloch(np.asarray(T, dtype=float), WATER, particle)

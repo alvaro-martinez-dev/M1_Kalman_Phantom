@@ -392,23 +392,42 @@ the options of the fit (`smoother`, `central_differences`, finite-difference ste
   bounds on 1/p of the prior, NaN if not applied), `n_reach` (safety-net bounds, normally 0)
 - `fit.parquet`: one row per (track, hit): the identifiers and `z`, `x_meas`, `sigma_x` of the
   hit and, for each stage `pred` (prediction), `filt` (filter) and `smooth` (smoother):
-  `x_<stage>`, `tx_<stage>`, `q_over_p_<stage>` and their errors `<var>_<stage>_err`; the
-  predicted residuals `res_pred`, `res_pred_err`, `chi2_k` and the smoothed ones `res_smooth`,
+  `x_<stage>`, `tx_<stage>`, `q_over_p_<stage>`, their errors `<var>_<stage>_err` and the
+  correlations of the covariance `corr_x_tx_<stage>`, `corr_x_q_over_p_<stage>`,
+  `corr_tx_q_over_p_<stage>`; the predicted residuals `res_pred`, `res_pred_err`, `chi2_k` and the smoothed ones `res_smooth`,
   `res_smooth_err` (variance V − C_xx: the hit is part of the estimate). The truth is joined
   by (`track_id`, `plane_index`) with `states.parquet` of the propagation
 - `metadata.yml`: date, git commit, the hits dataset used and what it was made from (propagation
   with its creation date, commit and hashes, initial beam and its `beam` block), the prior, the
-  options of the fit (`kalman_hash`, `smoother`, `central_differences`, finite-difference steps)
-  and a summary (tracks fitted and stopped, mean χ²/ndf, time)
-- `report.pdf`, if `run.plot` is `true`: the fit against the MC truth (`plotting/plot_fit.py`):
-  1. pulls (fit − true)/σ_fit of x, tx and q/p at all the planes against N(0, 1), one page for
-     the filter and one for the smoother. The pulls of a track are correlated (q/p barely changes
-     along it), so the χ² of these histograms can be > 1 with std ≈ 1
-  2. χ² of the tracks against χ²(ndf), and its probability against a flat distribution
-  3. per plane: resolution std(fit − true) of x, tx and q/p against the error the fit gives,
-     filter and smoother side by side
-  4. per plane: mean and std of the pulls, against 0 and 1, with their χ²
-  5. a few tracks: fit − true of x and q/p along z with the ±1σ band of the fit, and the hits
+  options of the fit (`kalman_hash`, `smoother`, `central_differences`, finite-difference steps,
+  `range_constraints`) and a summary (tracks fitted and failed, tracks that stop in the phantom,
+  tracks with range bounds, mean χ²/ndf, time)
+- `report.pdf`, if `run.plot` is `true`: the fit against the MC truth (`plotting/plot_fit.py`),
+  filter and smoother together. The last hit of the tracks that stop in the phantom is left out
+  of pages 1-3 and 5-8 (its true energy is anywhere below the energy to cross the layer, which
+  no Gaussian describes) and shown in page 9:
+  1. pulls (fit − true)/σ_fit of x, tx and q/p against N(0, 1), at ONE random plane per track
+     (the planes of a track are correlated, so only one gives independent entries)
+  2. fit and true values of x, tx and q/p overlaid at the entrance and exit of the phantom
+  3. the same at the entrance and exit of the magnet. The fit is narrower than the truth where
+     it leans on the prior (e.g. q/p of the filter before the magnet)
+  4. χ² of the tracks against χ²(ndf), and its probability against a flat distribution
+  5. innovations of the filter r/√S, the only test that needs no MC truth: mean and std per
+     plane, and whiteness (correlation between the innovations of every pair of planes, with
+     r√n ~ N(0, 1) and Σ(r√n)² ~ χ²(pairs))
+  6. NEES = (fit − true)ᵀ C⁻¹ (fit − true) against χ²(3): the whole covariance, also its
+     correlations. Histogram at one plane per track, and mean per plane
+  7. per plane: resolution std(fit − true) of x, tx and q/p against the error the fit gives
+  8. per plane: mean and std of the pulls, against 0 and 1, with their χ²
+  9. tracks that stop in the phantom (if any): coverage of the range bounds, energy at the phantom
+     entrance against the spread of the beam, range verification (stop depth from the CSDA range
+     of the fitted entrance energy against the true one, compared with the beam prior alone and
+     with the planes alone), and the pulls against the hits left to the last one
+  10. proton radiography (fits with smoother, tracks that cross the phantom): WEPL of each track,
+     R_water(T_in) − R_water(T_out), against the true one, with T_out from the full fit (which
+     uses the model phantom through the beam prior) or from the magnet alone (prior removed: the
+     real measurement), and T_in of the beam or the true one; error budget and residual against x
+  11. a few tracks: fit − true of x and q/p along z with the ±1σ band of the fit, and the hits
 
 Options: `--config <name or path>`, `--input <hits dataset>` (default: `kalman.input`),
 `--n-max <n>` (fit only the first n tracks, default: `kalman.n_max`),

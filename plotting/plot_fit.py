@@ -35,6 +35,19 @@
 #      coverage of the range bounds (true initial 1/p inside [s_lo, s_hi]), the energy resolution at
 #      the phantom entrance against that of the beam, and the pulls against the number of hits
 #      before the last one
+#   8b. Proton radiography (tracks that cross the phantom, fits with smoother): WEPL of each track,
+#      R_water(T_in) - R_water(T_out) (src/phantom/wepl.py), against the true one from the MC energies
+#      at D_phantom_start and D_phantom_end. T_in is not measured (the planes only measure x): the
+#      nominal energy of the beam, or the true one (ideal). T_out (it is the same anywhere after the
+#      phantom: vacuum, and B does no work) from:
+#        - the full fit, the smoother at D_phantom_end. But the fit KNOWS the phantom: its prior (the
+#          beam) is slowed down through the MODEL phantom, with weight sigma_smooth^2 / sigma_filt^2 in
+#          the smoother (~0.5 here), so the errors of T_in and T_out cancel and the WEPL leans to the
+#          model. Not a measurement of an unknown phantom (proton CT)
+#        - the magnet only: the prior removed from the smoother (remove_prior, the filter at
+#          D_phantom_end is the prior plus the phantom hits, which say almost nothing of q/p). This is
+#          the measurement: the pull of its q/p against the truth checks it
+#      Error budget: sigma_WEPL = sigma_T / S_water(T) for the beam spread and for T_out, in quadrature
 #   9. A few tracks: fit - true of x and q/p along z with their ±1 sigma bands, and the hits
 #
 # The LAST hit of a track that stops is left out of pages 1, 2, 3, 5, 6 and 7: there the true energy
@@ -49,9 +62,13 @@ import warnings
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from scipy.stats import chi2 as chi2_dist
+from scipy.stats import norm
 
 from plotting.plot_hits import chi2_text, gaussian_panel
 from plotting.plot_init_beam import (COLOR_AXIS, COLOR_EXPECTED, COLOR_MUTED, COLOR_TEXT, PAGE_SIZE,
@@ -59,8 +76,10 @@ from plotting.plot_init_beam import (COLOR_AXIS, COLOR_EXPECTED, COLOR_MUTED, CO
 from plotting.plot_layout import COLORS_MATERIAL
 from plotting.plot_tracks import plane_index_named
 from src.kalman.fit import CORR_PAIRS
+from src.phantom.depth_dose import csda_stop_depth
+from src.phantom.wepl import wepl_error, wepl_from_energies, wepl_range_definition
 from src.propagator.propagator import kinetic_energy
-from src.utils.config_loader import particle_by_name
+from src.utils.config_loader import make_geometry, particle_by_name
 from src.utils.dataset_io import dataset_path, load_dataset, load_table
 
 REPORT_NAME = "report.pdf"
@@ -83,6 +102,9 @@ FIT_VS_TRUE_PAGES = {"phantom": ["D_phantom_start", "D_phantom_end"],
                      "magnet": ["D_magnet_start", "D_magnet_end"]}
 SIDE_MARGIN = [1, 7, 1]     # width ratios margin / panels / margin of the per-plane resolution page
 N_EXAMPLE_TRACKS = 3       # tracks of the last page
+COLOR_MAGNET = COLORS_MATERIAL[3]  # WEPL page: magnet only, entrance energy of the beam
+COLOR_IDEAL = COLORS_MATERIAL[2]   # WEPL page: magnet only, true entrance energy
+N_X_BINS = 8               # WEPL page: bins of x at the phantom exit
 MARKER_SIZE = 5.0
 BAND_ALPHA = 0.25
 
@@ -526,8 +548,64 @@ def true_initial_qp(tracks, metadata):
     return tracks.set_index("track_id")["input_row"].map(beam_tracks["q_over_p0"])
 
 
+# [MeV] error of the kinetic energy given by an error err of q/p: sigma_T = beta sigma_p (arrays)
+def kinetic_energy_error(q_p, err, particle):
+    p = np.abs(particle.charge / q_p)
+    return (p / np.sqrt(p**2 + particle.mass**2)) * p * np.abs(err / q_p)
+
+
+# Nominal kinetic energy of the beam and its spread [MeV], from p0 and sigma_p0 of the beam block
+def beam_energy(metadata, particle):
+    p0, sigma_p0 = metadata["beam"]["p0"], metadata["beam"]["sigma_p0"]
+    E0 = np.sqrt(p0**2 + particle.mass**2)
+    return E0 - particle.mass, p0 / E0 * sigma_p0
+
+
+# Range verification of the tracks that stop in the phantom (and stop in the MC): where they stop
+# along z, from the fitted kinetic energy at the phantom entrance (CSDA through the layers,
+# src.phantom.depth_dose.csda_stop_depth), against the true stop of the propagation (z_final)
+# Returns: DataFrame indexed by track_id, [mm]: true; <stage> and <stage>_err (sigma_T dz/dT, numeric)
+#          for each stage (NaN if the fitted energy crosses the phantom); prior (CSDA of the nominal beam
+#          energy, the same for all); planes (middle of the gap between the last plane with a hit and
+#          the next one, what the planes alone say). None without an entrance plane or a true stop
+def stop_depths(df, metadata, stages):
+
+    k_in = plane_index_named(metadata["planes"], "D_phantom_start")
+    if k_in is None:
+        return None
+    particle = particle_by_name(metadata["particle"])
+    prop_tracks, prop_meta = load_dataset(metadata["propagation"]["input"])
+    geometry = make_geometry(prop_meta["geometry"])
+    true = prop_tracks.loc[prop_tracks["stopped"]].set_index("track_id")["z_final"]
+
+    def depth(T):
+        z = csda_stop_depth(geometry, T, particle)
+        return np.nan if z is None else z
+
+    entrance = df[df["stops"] & (df["plane_index"] == k_in)].set_index("track_id")
+    entrance = entrance[entrance.index.isin(true.index)]
+    if entrance.empty:
+        return None
+    out = pd.DataFrame({"true": true.loc[entrance.index]})
+    h = 0.01      # [MeV] step of the numeric derivative dz/dT
+    for st in stages:
+        q_p, err = entrance[f"q_over_p_{st}"].to_numpy(), entrance[f"q_over_p_{st}_err"].to_numpy()
+        T, sigma_T = kinetic_energy(q_p, particle), kinetic_energy_error(q_p, err, particle)
+        out[st] = [depth(t) for t in T]
+        out[f"{st}_err"] = sigma_T * np.array([(depth(t + h) - depth(t - h)) / (2 * h) for t in T])
+    out["prior"] = depth(beam_energy(metadata, particle)[0])
+
+    planes = metadata["planes"]
+    last = df[df["last_of_stop"]].set_index("track_id")["plane_index"].reindex(out.index)
+    z_last = np.array([planes[int(k)]["z"] for k in last])
+    z_next = np.array([planes[int(k) + 1]["z"] if int(k) + 1 < len(planes) else np.nan for k in last])
+    out["planes"] = 0.5 * (z_last + z_next)
+    return out
+
+
 # Page 6: tracks that stop in the phantom. Top left: summary and coverage of the range bounds. Top
-# right: kinetic energy at the phantom entrance, fit - true, against the spread of the beam. Bottom:
+# middle: kinetic energy at the phantom entrance, fit - true, against the spread of the beam. Top right:
+# stop depth from the fitted energy against the true one (range verification). Bottom:
 # mean and std of the pulls of q/p (each stage) and x (smoother) against the hits left to the last one
 def page_stopping(df, tracks, metadata, stages):
 
@@ -535,15 +613,16 @@ def page_stopping(df, tracks, metadata, stages):
     particle = particle_by_name(metadata["particle"])
     stopping = tracks[tracks["range_end"]]
     rows = df[df["stops"]]
-    grid = fig.add_gridspec(2, 2, height_ratios=[1, 1.2])
+    # top: summary, energy at the entrance, stop depth; bottom: pulls (mean, std)
+    grid = fig.add_gridspec(2, 6, height_ratios=[1, 1])
 
     # Summary and coverage: the true initial s = |q|/p must be inside [s_lo, s_hi] (NaN: unbounded)
-    ax = fig.add_subplot(grid[0, 0])
+    ax = fig.add_subplot(grid[0, 0:2])
     ax.axis("off")
     lines = [f"Tracks fitted: {int((tracks['status'] == 'ok').sum())}",
-             f"Stop in the phantom (no hit on the plane after the last): {len(stopping)}",
+             f"Stop in the phantom (no hit on the plane\nafter the last): {len(stopping)}",
              f"With a range bound on the prior: {int((np.isfinite(tracks['s_hi']) | np.isfinite(tracks['s_lo'])).sum())}",
-             f"Safety-net bounds (mean track not reaching a hit): {int(tracks['n_reach'].sum())}"]
+             f"Safety-net bounds (mean track not\nreaching a hit): {int(tracks['n_reach'].sum())}"]
     qp0 = true_initial_qp(tracks, metadata)
     if qp0 is not None:
         s0 = np.sign(particle.charge) * qp0
@@ -551,19 +630,18 @@ def page_stopping(df, tracks, metadata, stages):
         hi = tracks.set_index("track_id")["s_hi"].fillna(np.inf)
         bounded = tracks.set_index("track_id")["s_lo"].notna() | tracks.set_index("track_id")["s_hi"].notna()
         inside = ((s0 > lo) & (s0 < hi))[bounded]
-        lines.append(f"Coverage: true initial 1/p inside its bounds in {inside.sum()} / {len(inside)} tracks"
+        lines.append(f"Coverage: true initial 1/p inside its bounds\nin {inside.sum()} / {len(inside)} tracks"
                      + (f" ({100 * inside.mean():.2f} %)" if len(inside) else ""))
-        lines.append("(below 100 % only through what the bounds neglect: scattering lengthens the path)")
-    ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", fontsize=9, color=COLOR_TEXT, transform=ax.transAxes)
+        lines.append("(below 100 % only through what the bounds\nneglect: scattering lengthens the path)")
+    ax.text(0.0, 1.0, "\n".join(lines), va="top", ha="left", fontsize=8, color=COLOR_TEXT, transform=ax.transAxes)
     # (here and not as a footnote, which the constrained layout puts over the x labels of the bottom row)
-    ax.text(0.0, 0.0, "Pulls below: at the last hit the true energy is anywhere between ~1 MeV and the\n"
-            "energy to cross the layer. No Gaussian in q/p describes it, so its q/p pull is not\n"
-            "N(0, 1) (src/kalman/filter.py)", va="bottom", ha="left", fontsize=8, color=COLOR_MUTED,
-            transform=ax.transAxes)
+    ax.text(0.0, 0.0, "Pulls below: at the last hit the true energy is\nanywhere between ~1 MeV and the energy to cross\n"
+            "the layer. No Gaussian in q/p describes it, so its\nq/p pull is not N(0, 1) (src/kalman/filter.py)",
+            va="bottom", ha="left", fontsize=7, color=COLOR_MUTED, transform=ax.transAxes)
 
     # Energy at the phantom entrance: fit - true, against the spread of the energy of the beam
     entrance = [k for k, p in enumerate(metadata["planes"]) if "phantom_start" in p["name"]]
-    ax = fig.add_subplot(grid[0, 1])
+    ax = fig.add_subplot(grid[0, 2:4])
     style_axes(ax)
     if entrance:
         e = rows[rows["plane_index"] == entrance[0]]
@@ -573,23 +651,48 @@ def page_stopping(df, tracks, metadata, stages):
             name, color = STAGES[st]
             q_p, err = e[f"q_over_p_{st}"].to_numpy(), e[f"q_over_p_{st}_err"].to_numpy()
             T_fit = kinetic_energy(q_p, particle)
-            p = np.abs(particle.charge / q_p)
-            sigma_T = (p / np.sqrt(p**2 + particle.mass**2)) * p * np.abs(err / q_p)    # beta * sigma_p
+            sigma_T = kinetic_energy_error(q_p, err, particle)
             dT = T_fit - T_true
             ax.hist(dT, bins=n_bins(len(dT)), histtype="step", color=color, linewidth=1.5, label=name)
-            titles.append(f"{name}: std(fit − true) = {dT.std():.2f} MeV, error of the fit = "
+            titles.append(f"{name}: std(fit − true) {dT.std():.2f} MeV,\n   error of the fit "
                           f"{np.sqrt(np.mean(sigma_T**2)):.2f} MeV")
-        beam = metadata["beam"]
-        p0 = beam["p0"]
-        sigma_T_beam = p0 / np.sqrt(p0**2 + particle.mass**2) * beam["sigma_p0"]
+        _, sigma_T_beam = beam_energy(metadata, particle)
         titles.append(f"Beam alone: {sigma_T_beam:.2f} MeV")
-        ax.set_title("Kinetic energy at the phantom entrance\n" + "\n".join(titles), fontsize=8,
+        ax.set_title("Kinetic energy at the phantom entrance\n" + "\n".join(titles), fontsize=7,
                      color=COLOR_TEXT, loc="left")
-        ax.set_xlabel("$T_\\mathrm{fit} - T_\\mathrm{true}$ [MeV]", fontsize=10, color=COLOR_TEXT)
+        ax.set_xlabel("$T_\\mathrm{fit} - T_\\mathrm{true}$ [MeV]", fontsize=9, color=COLOR_TEXT)
         ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
-        ax.legend(loc="upper right", fontsize=8, frameon=False)
+        ax.legend(loc="upper right", fontsize=7, frameon=False)
     else:
         ax.text(0.5, 0.5, "No plane at the phantom entrance", ha="center", va="center", color=COLOR_MUTED)
+
+    # Range verification: stop depth from the fitted entrance energy (CSDA) against the true one
+    ax = fig.add_subplot(grid[0, 4:6])
+    style_axes(ax)
+    depths = stop_depths(df, metadata, stages)
+    if depths is None:
+        ax.text(0.5, 0.5, "No plane at the phantom entrance,\nor no true stop", ha="center", va="center",
+                color=COLOR_MUTED)
+    else:
+        prior = (depths["prior"] - depths["true"]).to_numpy()
+        residuals = {st: (depths[st] - depths["true"]).to_numpy() for st in stages}
+        values = np.concatenate([prior] + [r[np.isfinite(r)] for r in residuals.values()])
+        edges = np.linspace(np.quantile(values, 0.001), np.quantile(values, 0.999), n_bins(len(depths)) + 1)
+        ax.hist(prior, edges, color=COLOR_TRUE, label="Beam prior alone")
+        titles = [f"Beam prior alone: mean {prior.mean():+.2f}, std {prior.std():.2f}"]
+        for st, r in residuals.items():
+            name, color = STAGES[st]
+            ok = np.isfinite(r)
+            ax.hist(r[ok], edges, histtype="step", color=color, linewidth=1.5, label=name)
+            titles.append(f"{name}: mean {r[ok].mean():+.2f}, std {r[ok].std():.2f}, "
+                          f"error {np.sqrt(np.nanmean(depths[f'{st}_err']**2)):.2f}")
+        planes = (depths["planes"] - depths["true"]).to_numpy()
+        titles.append(f"Planes alone (middle of the gap where it stops):\n   std {planes.std():.1f}")
+        ax.set_title("Stop depth [mm]: CSDA of the fitted entrance energy\n− true (MC)\n" + "\n".join(titles),
+                     fontsize=7, color=COLOR_TEXT, loc="left")
+        ax.set_xlabel("$z_\\mathrm{stop,\\,fit} - z_\\mathrm{stop,\\,true}$ [mm]", fontsize=9, color=COLOR_TEXT)
+        ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
+        ax.legend(loc="upper right", fontsize=7, frameon=False)
 
     # Pulls against the hits left to the last one: N(0, 1) except at the last hit (0)
     n_back = int(rows["hits_to_last"].max()) + 1
@@ -599,7 +702,7 @@ def page_stopping(df, tracks, metadata, stages):
     offsets = np.linspace(-0.15, 0.15, len(series))
     for col, (stat, expected, ylabel) in enumerate((("mean", 0.0, "Mean of the pulls"),
                                                     ("std", 1.0, "Std of the pulls"))):
-        ax = fig.add_subplot(grid[1, col])
+        ax = fig.add_subplot(grid[1, 3 * col:3 * col + 3])
         style_axes(ax)
         for (label, column, color, marker), offset in zip(series, offsets):
             groups = rows.groupby("hits_to_last")[column]
@@ -615,6 +718,195 @@ def page_stopping(df, tracks, metadata, stages):
         ax.set_ylabel(ylabel, fontsize=9, color=COLOR_MUTED)
         if col == 0:
             ax.legend(loc="best", fontsize=7, frameon=False)
+    return fig
+
+
+# Removes a Gaussian prior from a posterior, one variable (1D): with 1/post^2 = 1/prior^2 + 1/meas^2 and
+# post_mean = post^2 (prior_mean/prior^2 + meas_mean/meas^2), what the measurements alone say is
+#   1/meas^2 = 1/post^2 - 1/prior^2,   meas_mean = meas^2 (post_mean/post^2 - prior_mean/prior^2)
+# Used for the q/p at the phantom exit: posterior = smoother, prior = filter there (beam prior slowed down
+# through the model phantom + the phantom hits, which say almost nothing of q/p), so what is left is the
+# measurement of the magnet and the planes after the phantom. 1D: it neglects the correlations of q/p
+# with x and tx in the two states (small, checked by the pull of the result against the truth)
+# Returns: (meas_mean, meas_sigma), NaN where the prior is not wider than the posterior
+def remove_prior(post_mean, post_sigma, prior_mean, prior_sigma):
+    post_mean, post_sigma = np.asarray(post_mean, float), np.asarray(post_sigma, float)
+    prior_mean, prior_sigma = np.asarray(prior_mean, float), np.asarray(prior_sigma, float)
+    info = 1.0 / post_sigma**2 - 1.0 / prior_sigma**2
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ok = info > 0
+        meas_var = np.where(ok, 1.0 / np.where(ok, info, 1.0), np.nan)
+        meas_mean = meas_var * (post_mean / post_sigma**2 - prior_mean / prior_sigma**2)
+    return meas_mean, np.sqrt(meas_var)
+
+
+# WEPL of each track that crosses the phantom (page 8b, see the header), or None if the fit has no
+# smoother or no plane at the entrance or exit of the phantom, or no track crosses it
+# Returns: DataFrame, one row per track: x_out (true x at the exit) [mm], w_prior (weight of the prior in
+#          the smoother), pull_magnet (of the magnet-only q/p against the truth), and WEPL [mm]:
+#          true; full (smoother, T_in of the beam); magnet (magnet only, T_in of the beam); magnet_ideal
+#          (magnet only, true T_in); sigma_full and sigma_magnet (error of T_out of each, in WEPL)
+def wepl_per_track(df, metadata):
+
+    if "q_over_p_smooth" not in df:      # the filter at the phantom exit has not seen the magnet yet
+        return None
+    k_in = plane_index_named(metadata["planes"], "D_phantom_start")
+    k_out = plane_index_named(metadata["planes"], "D_phantom_end")
+    if k_in is None or k_out is None:
+        return None
+    particle = particle_by_name(metadata["particle"])
+    columns = ["track_id", "x_true", "q_over_p_true", "q_over_p_filt", "q_over_p_filt_err", "q_over_p_smooth",
+               "q_over_p_smooth_err"]
+    out = df.loc[(df["plane_index"] == k_out) & ~df["stops"], columns]
+    both = out.merge(df.loc[df["plane_index"] == k_in, ["track_id", "q_over_p_true"]], on="track_id",
+                     suffixes=("", "_in"), validate="one_to_one")
+    if both.empty:
+        return None
+
+    T_true_in = kinetic_energy(both["q_over_p_true_in"].to_numpy(), particle)
+    T_true_out = kinetic_energy(both["q_over_p_true"].to_numpy(), particle)
+    T_beam = np.full(len(both), beam_energy(metadata, particle)[0])
+    qp_s, err_s = both["q_over_p_smooth"].to_numpy(), both["q_over_p_smooth_err"].to_numpy()
+    qp_f, err_f = both["q_over_p_filt"].to_numpy(), both["q_over_p_filt_err"].to_numpy()
+    qp_m, err_m = remove_prior(qp_s, err_s, qp_f, err_f)
+    T_full, T_magnet = kinetic_energy(qp_s, particle), kinetic_energy(qp_m, particle)
+    return pd.DataFrame({
+        "track_id": both["track_id"].to_numpy(),
+        "x_out": both["x_true"].to_numpy(),
+        "true": wepl_from_energies(T_true_in, T_true_out, particle),
+        "full": wepl_from_energies(T_beam, T_full, particle),
+        "magnet": wepl_from_energies(T_beam, T_magnet, particle),
+        "magnet_ideal": wepl_from_energies(T_true_in, T_magnet, particle),
+        "sigma_full": wepl_error(T_full, kinetic_energy_error(qp_s, err_s, particle), particle),
+        "sigma_magnet": wepl_error(T_magnet, kinetic_energy_error(qp_m, err_m, particle), particle),
+        "w_prior": (err_s / err_f)**2,
+        "pull_magnet": (qp_m - both["q_over_p_true"].to_numpy()) / err_m,
+    })
+
+
+# Page 8b: proton radiography, WEPL of each track from the fit (see the header). Top left: WEPL
+# reconstructed and true. Top right: residual against the expected Gaussian. Bottom left: error budget.
+# Bottom right: residual against the true x at the exit of the phantom
+def page_wepl(w, metadata):
+
+    fig = new_page("Proton radiography: WEPL = $R_\\mathrm{water}(T_\\mathrm{in}) - R_\\mathrm{water}(T_\\mathrm{out})$ "
+                   "of each track that crosses the phantom", metadata)
+    particle = particle_by_name(metadata["particle"])
+    T_beam, sigma_T_beam = beam_energy(metadata, particle)
+    _, prop_meta = load_dataset(metadata["propagation"]["input"])
+    wepl_model = wepl_range_definition(make_geometry(prop_meta["geometry"]), T_beam, particle)
+    w = w[np.isfinite(w["magnet"])]
+
+    def rms(column):
+        return float(np.sqrt(np.mean(w[column]**2)))
+
+    sigma_beam = float(wepl_error(T_beam, sigma_T_beam, particle))
+    sigma_full, sigma_magnet = rms("sigma_full"), rms("sigma_magnet")
+    # (label, column, expected std of fit - true, color)
+    recos = [("Full fit (uses the MODEL phantom)", "full", sigma_full, STAGES["smooth"][1]),
+             ("Magnet only, $T_\\mathrm{in}$ of the beam", "magnet", np.hypot(sigma_beam, sigma_magnet), COLOR_MAGNET),
+             ("Magnet only, $T_\\mathrm{in}$ true", "magnet_ideal", sigma_magnet, COLOR_IDEAL)]
+    residual = {col: (w[col] - w["true"]).to_numpy() for _, col, _, _ in recos}
+    grid = fig.add_gridspec(2, 2)
+
+    # (a) WEPL reconstructed and true. The true one is almost a single value (layers of uniform
+    # thickness): its peak is cut, so that the reconstructed ones stay readable
+    ax = fig.add_subplot(grid[0, 0])
+    style_axes(ax)
+    values = [w[col] for _, col, _, _ in recos]
+    edges = np.linspace(min(np.quantile(v, 0.001) for v in values), max(np.quantile(v, 0.999) for v in values),
+                        n_bins(len(w)) + 1)
+    ax.hist(w["true"], edges, color=COLOR_TRUE,
+            label=f"True (MC): mean {w['true'].mean():.2f} mm, std {w['true'].std():.2f} mm (peak off scale)")
+    peak = 0.0
+    for label, col, _, color in recos:
+        counts, _, _ = ax.hist(w[col], edges, histtype="step", color=color, linewidth=1.5, label=label)
+        peak = max(peak, counts.max())
+    ax.set_ylim(0, 1.35 * peak)
+    ax.axvline(wepl_model, color=COLOR_EXPECTED, linewidth=1.2, linestyle="--",
+               label=f"CSDA along z at the beam energy, {T_beam:.1f} MeV: {wepl_model:.2f} mm")
+    ax.set_title(f"WEPL of the {len(w)} tracks that cross the phantom", fontsize=8, color=COLOR_TEXT, loc="left")
+    ax.set_xlabel("WEPL [mm]", fontsize=9, color=COLOR_TEXT)
+    ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
+    ax.legend(loc="upper left", fontsize=6, frameon=False)
+
+    # (b) residual against the Gaussian of the expected std
+    ax = fig.add_subplot(grid[0, 1])
+    style_axes(ax)
+    limit = max(np.quantile(np.abs(r), 0.999) for r in residual.values())
+    edges = np.linspace(-limit, limit, n_bins(len(w)) + 1)
+    z = np.linspace(-limit, limit, 400)
+    titles = []
+    for label, col, expected, color in recos:
+        r = residual[col]
+        ax.hist(r, edges, histtype="step", color=color, linewidth=1.5, label=label)
+        ax.plot(z, len(r) * np.diff(edges)[0] * norm.pdf(z, 0.0, expected), color=color, linewidth=1, linestyle=":")
+        titles.append(f"{label.replace(' (uses the MODEL phantom)', '')}: mean {r.mean():+.2f} ± "
+                      f"{r.std() / np.sqrt(len(r)):.2f}, std {r.std():.2f} ({100 * r.std() / w['true'].mean():.1f} %), "
+                      f"expected {expected:.2f}")
+    pull = w["pull_magnet"].to_numpy()
+    titles.append(f"Pull of the magnet-only q/p: mean {pull.mean():+.3f}, std {pull.std():.3f} (expected 0, 1)")
+    ax.set_title("WEPL fit − true [mm] (dotted: Gaussian of the expected std)\n" + "\n".join(titles),
+                 fontsize=7, color=COLOR_TEXT, loc="left")
+    ax.set_xlabel("$\\mathrm{WEPL}_\\mathrm{fit} - \\mathrm{WEPL}_\\mathrm{true}$ [mm]", fontsize=9, color=COLOR_TEXT)
+    ax.set_ylabel("Tracks / bin", fontsize=9, color=COLOR_MUTED)
+    ax.legend(loc="upper right", fontsize=6, frameon=False)
+
+    # (c) resolution of each reconstruction: observed std (bar, colour of the reconstruction) against
+    # the expected one (black line), with how the expected one is made under its name
+    ax = fig.add_subplot(grid[1, 0])
+    style_axes(ax)
+    how = {"full": ("Full fit (model phantom)",
+                    f"error of $T_\\mathrm{{out}}$ only, {sigma_full:.2f}: the $T_\\mathrm{{in}}$ error cancels"),
+           "magnet": ("Magnet only, $T_\\mathrm{in}$ of the beam",
+                      f"√(beam {sigma_beam:.2f}² + magnet {sigma_magnet:.2f}²)"),
+           "magnet_ideal": ("Magnet only, $T_\\mathrm{in}$ true", f"magnet {sigma_magnet:.2f} only")}
+    y = np.arange(len(recos))[::-1]
+    for yi, (_, col, expected, color) in zip(y, recos):
+        observed = residual[col].std()
+        ax.barh(yi, observed, height=0.5, color=color)
+        ax.plot([expected, expected], [yi - 0.36, yi + 0.36], color=COLOR_TEXT, linewidth=2)
+        ax.text(max(observed, expected), yi, f"  {observed:.2f} (expected {expected:.2f})", va="center",
+                fontsize=7, color=COLOR_TEXT)
+    ax.set_yticks(y, [f"{how[col][0]}\n{how[col][1]}" for _, col, _, _ in recos], fontsize=7)
+    ax.set_xlim(0, 1.45 * max(max(residual[col].std(), e) for _, col, e, _ in recos))
+    ax.set_ylim(-0.6, len(recos) - 0.4)
+    ax.set_xlabel("Std of WEPL fit − true [mm]", fontsize=9, color=COLOR_TEXT)
+    ax.legend(handles=[Patch(facecolor=COLOR_MUTED, label="Observed: std(fit − true)"),
+                       Line2D([], [], color=COLOR_TEXT, linewidth=2, label="Expected from the errors")],
+              loc="lower right", fontsize=7, frameon=False)
+    ax.set_title(f"Resolution of each reconstruction: observed (bar) vs expected (line)\n"
+                 f"Each error source in WEPL: $\\sigma_T$ / $S_\\mathrm{{water}}(T)$ (beam: $\\sigma_T$ = "
+                 f"{sigma_T_beam:.2f} MeV, magnet: from the fit)\n"
+                 f"Full fit: {100 * w['w_prior'].mean():.0f} % of its $T_\\mathrm{{out}}$ comes from the beam prior,\n"
+                 f"slowed down by the MODEL phantom: not a measurement", fontsize=7, color=COLOR_TEXT, loc="left")
+
+    # (d) residual against the true x at the exit: mean ± std in bins of equal population
+    ax = fig.add_subplot(grid[1, 1])
+    style_axes(ax)
+    x = w["x_out"].to_numpy()
+    bins = np.unique(np.quantile(x, np.linspace(0, 1, N_X_BINS + 1)))
+    which = np.clip(np.searchsorted(bins, x, side="right") - 1, 0, len(bins) - 2)
+    centers = np.array([x[which == b].mean() for b in range(len(bins) - 1)])
+    step = 0.15 * np.min(np.diff(centers)) if len(centers) > 1 else 0.1
+    for (label, col, _, color), offset in zip(recos, (-step, 0.0, step)):
+        r = residual[col]
+        mean = np.array([r[which == b].mean() for b in range(len(bins) - 1)])
+        std = np.array([r[which == b].std() for b in range(len(bins) - 1)])
+        ax.errorbar(centers + offset, mean, yerr=std, fmt="o", markersize=MARKER_SIZE, color=color, capsize=2,
+                    label=label)
+    ax.axhline(0.0, color=COLOR_EXPECTED, linewidth=1.2)
+    ax.set_title(f"WEPL fit − true against the true x at the exit ({len(bins) - 1} bins of equal population)\n"
+                 "points: mean, bars: std. Flat for a phantom of uniform layers", fontsize=7, color=COLOR_TEXT,
+                 loc="left")
+    ax.set_xlabel("x at the exit of the phantom [mm]", fontsize=9, color=COLOR_TEXT)
+    ax.set_ylabel("WEPL fit − true [mm]", fontsize=9, color=COLOR_MUTED)
+    # below the axis, out of the points (short names: the colours are those of the other panels)
+    short = {"full": "Full fit", "magnet": "Magnet, $T_\\mathrm{in}$ of the beam",
+             "magnet_ideal": "Magnet, $T_\\mathrm{in}$ true"}
+    handles, _ = ax.get_legend_handles_labels()
+    ax.legend(handles, [short[col] for _, col, _, _ in recos], loc="upper center", bbox_to_anchor=(0.5, -0.16),
+              ncols=len(recos), fontsize=7, frameon=False)
     return fig
 
 
@@ -681,6 +973,12 @@ def plot_fit(fit_dir, out_path=None, n_tracks=N_EXAMPLE_TRACKS, seed=0):
     pages += [page_resolution(main, metadata, stages), page_pull_planes(main, metadata, stages)]
     if df["stops"].any():
         pages.append(page_stopping(df, tracks, metadata, stages))
+    wepl = wepl_per_track(df, metadata)
+    if wepl is not None:
+        pages.append(page_wepl(wepl, metadata))
+    elif not metadata["smoother"]:
+        warnings.warn(f"{fit_dir} has no smoother: no WEPL page (the filter at the phantom exit has not seen "
+                      "the magnet). Redo the fit with kalman.smoother: true to get it")
     pages.append(page_examples(df, metadata, stages, n_tracks, seed))
 
     out_path = Path(out_path) if out_path is not None else fit_dir / REPORT_NAME
