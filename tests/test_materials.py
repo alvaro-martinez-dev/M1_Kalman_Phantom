@@ -6,10 +6,11 @@ import numpy as np
 import pytest
 from src.phantom.materials import density_effect, beta_gamma
 from src.constants import (
-    WATER, BONE, PROTON, MU_MINUS, Particle,
+    WATER, BONE, PROTON, Particle,
 )
 
 # Not used by the simulation (commented out in src/constants.py), only to test Bethe-Bloch here
+MU_MINUS = Particle("mu-", 105.6583755, -1, 658_638.4)
 ELECTRON = Particle("e-", 0.51099895, -1)
 ALPHA = Particle("alpha", 3727.37941, +2)
 from src.phantom.materials import (

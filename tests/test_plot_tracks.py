@@ -7,7 +7,10 @@ import pytest
 from matplotlib.backends.backend_pdf import PdfPages
 
 from plotting.plot_tracks import page_states, plane_index_named, state_locations
-from src.constants import MU_PLUS, PROTON
+from src.constants import PROTON, Particle
+
+# Another species, only to draw a page with it (commented out in src/constants.py)
+MU_PLUS = Particle("mu+", 105.6583755, +1, 658_638.4)
 
 
 def metadata(phantom=True, magnet=True, planes=None):

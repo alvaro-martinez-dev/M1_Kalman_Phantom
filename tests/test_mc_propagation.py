@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.constants import JPSI, PROTON
+from src.constants import PROTON, Particle
 from src.field import HardEdgeField
 from src.geometry.detectors import DetectorPlanes
 from src.geometry.geometry import Geometry
@@ -15,6 +15,9 @@ from src.propagator.propagator import Propagator, kinetic_energy, momentum
 from src.utils.dataset_io import load_dataset, load_table, save_dataset
 
 Z_PH, Z_MAG, L_MAG, HALF_GAP = 50.0, 400.0, 300.0, 50.0
+
+# Neutral particle, only to test that it is rejected (commented out in src/constants.py)
+JPSI = Particle("J/psi", 3096.900, 0, 2.13e-9)
 
 
 def system(thickness=200.0):

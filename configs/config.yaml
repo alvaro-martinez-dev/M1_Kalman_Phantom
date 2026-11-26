@@ -44,32 +44,35 @@ beams:
     p0: 391.5
     sigma_p0: 3.0
 
-  antiproton:
-    particle: ANTIPROTON
-    x0: 0.0
-    sigma_x0: 1.0
-    theta0: 0.0
-    sigma_theta0: 1.0e-3
-    p0: 700.0
-    sigma_p0: 3.0
+  # NOTE: the study is restricted to protons. The code is generic in the particle, but the
+  # other species (and their constants in src/constants.py) are commented out to keep the scope
 
-  muon:
-    particle: MU_MINUS
-    x0: 0.0
-    sigma_x0: 1.0
-    theta0: 0.0
-    sigma_theta0: 1.0e-3
-    p0: 700.0
-    sigma_p0: 3.0
+  #antiproton:
+  #  particle: ANTIPROTON
+  #  x0: 0.0
+  #  sigma_x0: 1.0
+  #  theta0: 0.0
+  #  sigma_theta0: 1.0e-3
+  #  p0: 700.0
+  #  sigma_p0: 3.0
 
-  antimuon:
-    particle: MU_PLUS
-    x0: 0.0
-    sigma_x0: 1.0
-    theta0: 0.0
-    sigma_theta0: 1.0e-3
-    p0: 700.0
-    sigma_p0: 3.0
+  #muon:
+  #  particle: MU_MINUS
+  #  x0: 0.0
+  #  sigma_x0: 1.0
+  #  theta0: 0.0
+  #  sigma_theta0: 1.0e-3
+  #  p0: 700.0
+  #  sigma_p0: 3.0
+
+  #antimuon:
+  #  particle: MU_PLUS
+  #  x0: 0.0
+  #  sigma_x0: 1.0
+  #  theta0: 0.0
+  #  sigma_theta0: 1.0e-3
+  #  p0: 700.0
+  #  sigma_p0: 3.0
 
   #jpsi:
   #  particle: JPSI
@@ -187,7 +190,7 @@ hits:
 kalman:
   # Kalman fit of the hits (scripts/generate_fit.py). The model of the fit (geometry, field,
   # propagator and the beam as prior) is read from the metadata of the datasets, not from this yaml
-  input: data\hits\antimuon_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70 #hits\proton_Beamca5fcd_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
+  input: hits\proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
   n_max: null                 # fit only the first n tracks of the input (null: all of them)
   smoother: true              # also run the RTS smoother after the filter (both are saved)
   central_differences: false  # Jacobians by central differences (slower) instead of forward ones
