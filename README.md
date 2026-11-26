@@ -8,9 +8,12 @@ Authors: Alvaro Martinez, Yared Flores, Andrea Cursano
 
 ## Description
 
-We simulate charged particles traversing a multi-layer tracking detector
+We simulate protons traversing a multi-layer phantom and a tracking detector
 and reconstruct their trajectories using a Kalman filter, accounting for
-measurement noise and multiple scattering.
+measurement noise, energy loss and multiple scattering.
+
+The study is restricted to protons: the other species (antiprotons, muons, J/ψ and its decays)
+are commented out in `src/constants.py` and `configs/config.yaml`.
 
 ## Installation
 
@@ -185,7 +188,7 @@ What happens to each track, from its `z0` to the end of the system:
 - **Phantom**: energy loss (Bethe-Bloch) and field coupled, Runge-Kutta on (x, tx, q/p).
   Each layer is cut into slices of at most `propagator.scattering.max_slice` mm, and a random
   multiple-scattering kick (dx, dtx) is applied at the end of each slice (Highland with the
-  local momentum). A particle whose range ends in the phantom stops there.
+  local momentum). A proton whose range ends in the phantom stops there.
 - **Magnet**: field from `geometry.magnet` (tabulated once over the whole system if
   `interpolation.enabled`); outside the gap (|x| > `x_half_gap`) the field is zero.
 
@@ -220,9 +223,8 @@ Options: `--config <name or path>`, `--input <dataset>` (default: `propagator.in
 `--name <folder>`, `--overwrite`, `--plot`/`--no-plot` (default: `run.plot`).
 
 Speed: about 70 ms per track that crosses the whole system with `step: 1.0`, in one process
-(100 000 tracks take about 2 hours), so start with a small `n_max`. Only charged particles of a
-single species, going forwards (`pz0 > 0`), can be propagated: a neutral beam (e.g. `jpsi`)
-leaves no hits.
+(100 000 tracks take about 2 hours), so start with a small `n_max`. Only protons going forwards
+(`pz0 > 0`) can be propagated.
 
 Each track has its own random stream for the kicks (from `propagator.seed` and its row in the
 input), so any track can be propagated again on its own and it is exactly the same track.
@@ -345,8 +347,8 @@ A warning is printed if the propagation was regenerated after the hits were made
 
 For each track, from the prior at z = 0 and hit by hit in beam order:
 
-- **Prior**: the beam, x0 = `beam.x0`, tx0 = tan(`beam.theta0`), q/p0 = q/`beam.p0`, with
-  C0 = diag(σ_x0², ((1 + tx0²) σ_θ0)², (|q| σ_p0 / p0²)²). Only the parameters of the beam, never
+- **Prior**: the beam, x0 = `beam.x0`, tx0 = tan(`beam.theta0`), q/p0 = 1/`beam.p0` (q = +1), with
+  C0 = diag(σ_x0², ((1 + tx0²) σ_θ0)², (σ_p0 / p0²)²). Only the parameters of the beam, never
   the true initial state of the track.
 - **Prediction** (`src/kalman/transport.py`): the mean track is transported to the next plane
   with the propagator of the MC without kicks, cut exactly as the MC cuts it (boundaries, field
@@ -361,7 +363,7 @@ For each track, from the prior at z = 0 and hit by hit in beam order:
 - **Range constraints** (`kalman.range_constraints`, `src/kalman/constraints.py`): inside the
   phantom the hits barely measure the energy, and a track that stops there never reaches the
   magnet. Its energy is measured by where it stopped: it reached its last hit (s₀ < s_hi) and left
-  no hit on the next plane (s₀ > s_lo), with s = |q|/p (1/p for unit charge). The boundaries are found with the propagator
+  no hit on the next plane (s₀ > s_lo), with s = 1/p. The boundaries are found with the propagator
   itself (same stopping criterion as the MC) and applied to the prior by truncating its Gaussian
   (constrained Kalman filtering by density truncation). Tracks with energy to spare are not
   affected. The q/p pulls are N(0, 1) except at the last hit of a track that stops, where no
@@ -385,7 +387,7 @@ the options of the fit (`smoother`, `central_differences`, finite-difference ste
   (`ok`, or `stopped` if the predicted track stops in the phantom before one of its hits; such a
   track has no fit rows; with range constraints this should not happen), `chi2`, `ndf`,
   `range_end` (no hit on the plane after the last one: the track stopped), `s_hi`, `s_lo` (range
-  bounds on |q|/p of the prior, NaN if not applied), `n_reach` (safety-net bounds, normally 0)
+  bounds on 1/p of the prior, NaN if not applied), `n_reach` (safety-net bounds, normally 0)
 - `fit.parquet`: one row per (track, hit): the identifiers and `z`, `x_meas`, `sigma_x` of the
   hit and, for each stage `pred` (prediction), `filt` (filter) and `smooth` (smoother):
   `x_<stage>`, `tx_<stage>`, `q_over_p_<stage>` and their errors `<var>_<stage>_err`; the
@@ -478,9 +480,9 @@ python -m pytest -q tests/test_geometry.py
 ```
 M1_Kalman_Phantom/
 ├── configs/
-│   └── config.yaml          all the parameters: run, beams, decays, geometry, propagator, hits, kalman
+│   └── config.yaml          all the parameters: run, beams, geometry, propagator, hits, kalman
 ├── src/                     main code (importable as src.*)
-│   ├── constants.py         particles, decay channels, materials, physical constants
+│   ├── constants.py         the proton, materials, physical constants
 │   ├── geometry/            layout along z
 │   │   ├── geometry.py      phantom layers, interfaces, magnet, region/material at each z
 │   │   ├── detectors.py     position of the detector planes
@@ -493,7 +495,8 @@ M1_Kalman_Phantom/
 │   │   ├── rk4.py           Runge-Kutta and Runge-Kutta-Nyström integrators
 │   │   ├── scattering.py    multiple scattering per slice: theta0, (dx, dtx) covariance, kicks
 │   │   └── multiprocess_propagation.py   propagation of many tracks in parallel processes
-│   ├── montecarlo/          initial beam, two-body decays, track table, full propagation MC, hits
+│   ├── montecarlo/          initial beam, track table, full propagation MC, hits
+│   │                        (two_body_decay.py is not used: decays are out of the scope)
 │   ├── kalman/              track fit
 │   │   ├── transport.py     prediction: mean track, Jacobian F (finite differences), process noise Q,
 │   │   │                    boundary in 1/p between reaching a plane and stopping before it

@@ -8,7 +8,7 @@
 # Usage (from the repo root):
 #   python -m scripts.generate_init_beam                      # uses configs/config.yaml and run.beam
 #   python -m scripts.generate_init_beam --beam proton
-#   python -m scripts.generate_init_beam --config my_config --beam antiproton --name antiproton_test --overwrite
+#   python -m scripts.generate_init_beam --config my_config --beam proton_low --name proton_low_test --overwrite
 #   python -m scripts.generate_init_beam --no-plot            # skips the report of run.plot
 
 import argparse
