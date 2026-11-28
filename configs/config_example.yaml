@@ -1,3 +1,7 @@
+#
+# DO NOT MODIFY THIS YAML!!! Its fine if you do so, but this file has the objetive of providing
+# an example of config file that works 100%, in case anything is messed up with the editable config file!!!
+#
 # NOTE: We had in mind studying decays but because of time constraints, the code doesn't account for them
 # That's why the decays and jpsi beams in this yaml are commented. But if decays were accounted for, we could uncomment these lines
 
