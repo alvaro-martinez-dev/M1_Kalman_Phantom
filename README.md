@@ -537,6 +537,7 @@ python -m pytest -q tests/test_geometry.py
 ```
 M1_Kalman_Phantom/
 ├── configs/
+|   |── config_example.yaml  example of config 
 │   └── config.yaml          all the parameters: run, beams, geometry, propagator, hits, kalman, bragg
 ├── src/                     main code (importable as src.*)
 │   ├── constants.py         the proton, materials, physical constants

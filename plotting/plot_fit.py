@@ -16,6 +16,8 @@
 #      where the measurements say little: Var(fit) ~ Var(true) - Var(fit - true). E.g. q/p of the
 #      filter before the magnet is almost the prior for every track (a spike: its peak is cut and
 #      the panel says so)
+#   3b. The same at the first and last detector planes of the system (always there, also without
+#      phantom nor magnet). Tracks that stop never reach the last plane: they are not in its row
 #   4. chi2 of the tracks against chi2(ndf), and its probability against a flat distribution
 #   4b. Innovations of the filter, r / sqrt(S) (predicted residuals, the terms of the chi2): the only
 #      test that does not need the MC truth, so the one that could be made on real data.
@@ -223,9 +225,11 @@ def page_pulls(sample, metadata, stages):
 # narrower than the true one where the fit leans on the prior (see the header); a fit histogram much
 # taller than the true one is cut
 # element: "phantom" or "magnet", for the title; names: plane names, one row each
-def page_fit_vs_true(df, metadata, stages, element, names):
+# title: title of the page (default: entrance and exit of the element)
+def page_fit_vs_true(df, metadata, stages, element, names, title=None):
 
-    fig = new_page(f"Fit and true values overlaid: entrance and exit of the {element}", metadata, True)
+    title = title or f"Fit and true values overlaid: entrance and exit of the {element}"
+    fig = new_page(title, metadata, True)
     planes = metadata["planes"]
     grid = fig.add_gridspec(len(names), len(VALUES))
     handles = None
@@ -963,6 +967,10 @@ def plot_fit(fit_dir, out_path=None, n_tracks=N_EXAMPLE_TRACKS, seed=0):
     pages = [page_pulls(sample, metadata, stages)]
     pages += [page_fit_vs_true(main, metadata, stages, element, names)
               for element, names in FIT_VS_TRUE_PAGES.items()]
+    # first and last planes of the system: always present, also without phantom nor magnet
+    ends = [metadata["planes"][0]["name"], metadata["planes"][-1]["name"]]
+    pages.append(page_fit_vs_true(main, metadata, stages, "system", ends,
+                                  "Fit and true values overlaid: first and last detector planes of the system"))
     pages.append(page_chi2(tracks, metadata))
     pages.append(page_innovations(main, metadata))
     if has_correlations(df, stages):

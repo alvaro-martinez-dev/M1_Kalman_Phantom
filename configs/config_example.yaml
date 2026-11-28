@@ -1,0 +1,172 @@
+# NOTE: We had in mind studying decays but because of time constraints, the code doesn't account for them
+# That's why the decays and jpsi beams in this yaml are commented. But if decays were accounted for, we could uncomment these lines
+
+# parameter config yaml
+# With this yaml file we avoid hardcoding the model's parameters
+
+# Units: MeV, mm, rad, T
+
+# ----------------------------------
+# CHECK THE FILE src/constants.py FOR VARIABLE DEFINITION !!!!!!!!!!!!!
+# ----------------------------------
+
+# -------------------------------------------------------------------------------
+# ------------------- Run: MC_init_beam -----------------------------------------
+# -------------------------------------------------------------------------------
+
+run:
+  seed: 42
+  n_events: 100000
+  beam: proton                  # which block of beams to simulate
+  decay: null #jpsi_mumu            # which block of decays to simulate
+  plot: true                  # write report.pdf in the dataset folder
+
+# --------------------------------------------------------------------------------
+# ------------------ Beams -------------------------------------------------------
+# --------------------------------------------------------------------------------
+
+beams:
+  proton:
+    particle: PROTON          # name of the constant in src/constants.py
+    x0: 0.0
+    sigma_x0: 1.0
+    theta0: 0.0
+    sigma_theta0: 1.0e-3
+    p0: 700.0
+    sigma_p0: 3.0
+
+  proton_low:                 # T ~ 78.4 MeV: CSDA range ~50 mm of water, so the protons stop in the
+    particle: PROTON          # phantom around the water/bone interface (test of the range constraints)
+    x0: 0.0
+    sigma_x0: 1.0
+    theta0: 0.0
+    sigma_theta0: 1.0e-3
+    p0: 391.5
+    sigma_p0: 3.0
+
+  # NOTE: the study is restricted to protons. The code is generic in the particle, but the
+  # other species (and their constants in src/constants.py) are commented out to keep the scope
+
+# -------------------------------------------------------------------------------------
+# ------------------ Decays -----------------------------------------------------------
+# -------------------------------------------------------------------------------------
+
+#decays:
+#  jpsi_mumu:
+#    channel: JPSI_MUMU                    # DecayChannel in src/constants.py
+#    input: init_beam/jpsi_n100000_seed42_Beame38100  # parent dataset, relative to data/
+#    seed: 87                              # must differ from the seed of the parent dataset
+
+# -----------------------------------------------------------------------------------
+# ----------------- Geometry --------------------------------------------------------
+# -----------------------------------------------------------------------------------
+# Note: Project supported for magnet after phantom, not inverted, not on spatial superposition
+# -----------------------------------------------------------------------------------
+
+geometry:
+  spacing_after_last: 100     # [mm] distance between the end of the last element present
+                              # (magnet, else phantom) and the end of the system
+
+  # enabled: false removes the element; its other keys are kept but not read
+  phantom:
+    enabled: true #false
+    z_start: 50.0            # [mm] entrance of the first layer
+    layers:                   # in beam order; material = Material in src/constants.py
+      - {material: WATER, thickness: 50.0}
+      - {material: BONE, thickness: 20.0}
+      - {material: WATER, thickness: 50.0}
+  magnet:
+    enabled: true             # false: no magnet and no field (straight lines in vacuum)
+    z_start: 400.0           # [mm] start of the magnet
+    z_length: 300.0             # [mm]
+    x_half_gap: 60.0            # [mm] plates at x = +-half_gap
+    y_height: 400               # [mm] thickness of the magnet plates in the y axis
+    B0: 1.0                   # [T] teslas
+    model: biot_savart        # biot_savart / hard_edge
+    biot_savart:
+      n_filaments: 80         # has to be even
+    interpolation:            # tabulate the field once, on a grid covering the whole system in z
+      enabled: true           # and the magnet gap in x (outside the gap the field is zero)
+      dx: 1.0                 # [mm]
+      dz: 0.5                 # [mm] set in order to minimize the interpolation error at the magnet edges (5% with dz = 2.0 mm, 10ppm with dz = 0.5 mm)
+
+  detector_planes: # we always generate detectors on the borders of the phantom and magnet!
+    enabled: true             # false: no detector planes
+                              # (their resolution sigma_x is in the hits block)
+    placement: 
+              # n_planes will be simetrically placed in the different regions for simplicity
+              # immediately before and after the phantom/magnet there are detector planes.
+              # this numbers don't account for these already established detector planes.
+              # If the phantom or the magnet is disabled, the two regions around it merge and get
+              # the planes of both (see src/geometry/detectors.py); its own keys are ignored.
+      n_before_phantom: 1 # number of detector planes before phantom
+      n_after_phantom_before_magnet: 2 # number o detector planes after phantom and before magnet
+      n_after_magnet: 1 # number of detector planes after magnet
+      n_inside_magnet: 1
+
+      inside_phantom: true # one detector at each layer interface
+
+# -------------------------------------------------------------------
+# ------------ Propagator (MC truth) --------------------------------
+# -------------------------------------------------------------------
+
+propagator:
+  # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
+  input: init_beam/proton_n100000_seed42_Beame55ace   # dataset of initial beam, relative to data/ (charged particles)
+  seed: 59    # seed for scattering kicks; must differ from the seed of the input
+  n_max: 10000 # number of tracks to propagate, chosen at random from the input (null: all of them).
+              # Must be <= the number of tracks of the input. Write it as an integer (1000, not 1e3)
+  n_workers: null   # processes for the propagation (src/propagator/multiprocess_propagation.py):
+                    # null = half the logical CPUs of the computer (~ physical cores, adapts to each PC),
+                    # 1 = serial; never more than the logical CPUs. The result does not depend on it.
+                    # Each process takes a few s to start: only worth it from a few hundred tracks
+                    # (1000 tracks: 71 s -> 30 s with 4-8 processes on 8 cores)
+
+  step: 1.0                   # [mm] RK step (fixed), or initial and maximum step (adaptive)
+  adaptive: false             # adaptive steps (error control with the tolerances) instead of fixed ones
+  tolerances:                 # local error allowed per step (only if adaptive)
+    x: 1.0e-6                 # [mm]
+    tx: 1.0e-8                # in the phantom
+    qp_rel: 1.0e-8            # relative, in q/p, in the phantom
+
+  scattering:                 # multiple Coulomb scattering in the phantom (Highland, per slice)
+    enabled: true             # false: no slices, the Monte Carlo propagates without kicks
+    max_slice: 5.0            # [mm] maximum slice length; each layer is cut into equal slices
+                              # (never across an interface), one kick at the end of each
+
+  bragg:                      # bragg.pdf of the propagation, written after it if run.plot is true
+                              # (plotting/plot_bragg.py): its tracks are propagated again through the
+                              # phantom on a fine grid of z (same random streams: the same tracks) and
+                              # the energy they lose is deposited along z and x. Not part of the Prop hash
+    n_tracks: 2000            # first n tracks of the dataset (a random sample of the beam); null: all
+    dz: 0.25                  # [mm] depth bins (each layer cut into equal bins, nodes at the interfaces)
+    dx: 0.5                   # [mm] x bins of the (z, x) map
+
+
+# ---------------------------------------------------------------------------------
+# ------------------ Hits on detectors --------------------------------------------
+# ----------------- (After propagation: MC measured) ------------------------------
+# ---------------------------------------------------------------------------------
+
+hits:
+  # Measurement on each detector plane (scripts/generate_hits.py): x_meas = x_true + N(0, sigma_x)
+  input: propagation/proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000   # propagation dataset, relative to data/
+  seed: 70                    # seed for the measurement errors; must differ from the seed of the input
+  sigma_x: 0.1                # [mm] resolution of every plane
+
+
+# ---------------------------------------------------------------------------------
+# ------------------ Kalman -------------------------------------------------------
+# ---------------------------------------------------------------------------------
+
+kalman:
+  # Kalman fit of the hits (scripts/generate_fit.py). The model of the fit (geometry, field,
+  # propagator and the beam as prior) is read from the metadata of the datasets, not from this yaml
+  input: hits/proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
+  n_max: null                 # fit only the first n tracks of the input (null: all of them)
+  smoother: true              # also run the RTS smoother after the filter (both are saved)
+  central_differences: false  # Jacobians by central differences (slower) instead of forward ones
+  range_constraints: true #false     # use the presence/absence of hits as bounds on the energy (truncated
+                              # Kalman, src/kalman/constraints.py): needed for tracks that stop in
+                              # the phantom. No effect on tracks with energy to spare
+  n_workers: null             # processes, as propagator.n_workers (null = half the logical CPUs)

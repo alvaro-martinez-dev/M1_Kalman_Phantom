@@ -17,7 +17,7 @@
 run:
   seed: 42
   n_events: 100000
-  beam: proton                  # which block of beams to simulate
+  beam: proton_low               # which block of beams to simulate
   decay: null #jpsi_mumu            # which block of decays to simulate
   plot: true                  # write report.pdf in the dataset folder
 
@@ -47,42 +47,6 @@ beams:
   # NOTE: the study is restricted to protons. The code is generic in the particle, but the
   # other species (and their constants in src/constants.py) are commented out to keep the scope
 
-  #antiproton:
-  #  particle: ANTIPROTON
-  #  x0: 0.0
-  #  sigma_x0: 1.0
-  #  theta0: 0.0
-  #  sigma_theta0: 1.0e-3
-  #  p0: 700.0
-  #  sigma_p0: 3.0
-
-  #muon:
-  #  particle: MU_MINUS
-  #  x0: 0.0
-  #  sigma_x0: 1.0
-  #  theta0: 0.0
-  #  sigma_theta0: 1.0e-3
-  #  p0: 700.0
-  #  sigma_p0: 3.0
-
-  #antimuon:
-  #  particle: MU_PLUS
-  #  x0: 0.0
-  #  sigma_x0: 1.0
-  #  theta0: 0.0
-  #  sigma_theta0: 1.0e-3
-  #  p0: 700.0
-  #  sigma_p0: 3.0
-
-  #jpsi:
-  #  particle: JPSI
-  #  x0: 0.0
-  #  sigma_x0: 1.0
-  #  theta0: 0.0
-  #  sigma_theta0: 1.0e-3
-  #  p0: 5000.0
-  #  sigma_p0: 50.0
-
 # -------------------------------------------------------------------------------------
 # ------------------ Decays -----------------------------------------------------------
 # -------------------------------------------------------------------------------------
@@ -105,14 +69,14 @@ geometry:
 
   # enabled: false removes the element; its other keys are kept but not read
   phantom:
-    enabled: true #false
+    enabled: false #true
     z_start: 50.0            # [mm] entrance of the first layer
     layers:                   # in beam order; material = Material in src/constants.py
       - {material: WATER, thickness: 50.0}
       - {material: BONE, thickness: 20.0}
       - {material: WATER, thickness: 50.0}
   magnet:
-    enabled: true             # false: no magnet and no field (straight lines in vacuum)
+    enabled: false #true             # false: no magnet and no field (straight lines in vacuum)
     z_start: 400.0           # [mm] start of the magnet
     z_length: 300.0             # [mm]
     x_half_gap: 60.0            # [mm] plates at x = +-half_gap
@@ -148,9 +112,9 @@ geometry:
 
 propagator:
   # Monte Carlo of the full propagation (scripts/generate_propagation.py): true state at each plane
-  input: init_beam/proton_n100000_seed42_Beame55ace   # dataset of initial beam, relative to data/ (charged particles)
+  input: init_beam/proton_low_n100000_seed42_Beam3677df   # dataset of initial beam, relative to data/ (charged particles)
   seed: 59    # seed for scattering kicks; must differ from the seed of the input
-  n_max: 10000 # number of tracks to propagate, chosen at random from the input (null: all of them).
+  n_max: 1000 # number of tracks to propagate, chosen at random from the input (null: all of them).
               # Must be <= the number of tracks of the input. Write it as an integer (1000, not 1e3)
   n_workers: null   # processes for the propagation (src/propagator/multiprocess_propagation.py):
                     # null = half the logical CPUs of the computer (~ physical cores, adapts to each PC),
@@ -186,9 +150,9 @@ propagator:
 
 hits:
   # Measurement on each detector plane (scripts/generate_hits.py): x_meas = x_true + N(0, sigma_x)
-  input: propagation/proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000   # propagation dataset, relative to data/
+  input: propagation\proton_low_Beam3677df_Lay863e30_Magnoff_Propb14662_seed59_n1000
   seed: 70                    # seed for the measurement errors; must differ from the seed of the input
-  sigma_x: 0.1                # [mm] resolution of every plane
+  sigma_x: 0.1 #0.1                # [mm] resolution of every plane
 
 
 # ---------------------------------------------------------------------------------
@@ -198,7 +162,7 @@ hits:
 kalman:
   # Kalman fit of the hits (scripts/generate_fit.py). The model of the fit (geometry, field,
   # propagator and the beam as prior) is read from the metadata of the datasets, not from this yaml
-  input: hits/proton_Beame55ace_Lay09e691_Magn9eaece_Propb14662_seed59_n10000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
+  input: hits\proton_low_Beam3677df_Lay863e30_Magnoff_Propb14662_seed59_n1000_hits_sigma0.1mm_seed70   # hits dataset, relative to data/
   n_max: null                 # fit only the first n tracks of the input (null: all of them)
   smoother: true              # also run the RTS smoother after the filter (both are saved)
   central_differences: false  # Jacobians by central differences (slower) instead of forward ones
