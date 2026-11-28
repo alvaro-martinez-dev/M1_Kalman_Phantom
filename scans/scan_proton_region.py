@@ -1,15 +1,14 @@
-"""Where do the protons go? x of simulated tracks in the magnet and at the planes (exploration).
+"""Proton region for every beam of the config, and the bending integral along the real paths.
 
-Tracks are sampled from a beam block of the config and propagated with the real Propagator
-(scattering kicks included). Part 1: distribution of max |x| inside the magnet, x at the planes.
-Part 2: variation of the bending integral I(x) = int By dz with x, for several plate heights,
-at the x reached by the protons.
-
-ASSUMPTIONS (not seen in the code): beams are in cfg["beams"][name] with the keys read by
-make_beam; p0 and sigma_p0 are in MeV; theta0 is an angle (tx = tan theta); tracks start at z = 0.
+For each beam: tracks sampled as Initial_Beam.generate does (same order of the draws, same seed),
+propagated with the real Propagator through the magnet, then
+  1. distribution of max |x| in the magnet (the 99th percentile with a bootstrap interval)
+  2. per track, the bending integral along the path in the magnet, I_path = int By(x(z), z) dz,
+     relative to the axis I_axis = int By(0, z) dz, for several plate heights. The field is
+     zero for |x| > x_half_gap, as in the propagator. Both integrals use the same z nodes.
 
     .venv\Scripts\python.exe scans\scan_proton_region.py --n 300
-    .venv\Scripts\python.exe scans\scan_proton_region.py --n 5000 --beam <name>
+    .venv\Scripts\python.exe scans\scan_proton_region.py --n 2000 --beams proton proton_low
 """
 import argparse
 import sys
@@ -20,112 +19,77 @@ sys.path.insert(0, str(ROOT))
 
 import numpy as np
 from src.field import BiotSavartField, build_field
-from src.montecarlo.propagation import plane_list
 from src.propagator.propagator import State, kinetic_energy
-from src.utils.config_loader import (get_constant, load_config, make_detector_planes,
-                                     make_geometry, make_propagator)
+from src.utils.config_loader import get_constant, load_config, make_geometry, make_propagator, make_beam
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--n", type=int, default=300, help="number of tracks")
-parser.add_argument("--beam", default=None, help="name of the beam block (default: the first)")
+parser.add_argument("--n", type=int, default=300, help="tracks per beam")
+parser.add_argument("--beams", nargs="*", default=None, help="beam names (default: all of the config)")
 parser.add_argument("--seed", type=int, default=1)
 args = parser.parse_args()
 
-Z0 = 0.0                       # initial z of the tracks (assumption)
-N_MAGNET_POINTS = 31           # states requested inside the magnet
-SCAN_PITCH = 5.0               # filament pitch of the height scan [mm]
+N_MAGNET_POINTS = 31
+SCAN_PITCH = 5.0                       # filament pitch of the height scan [mm]
 HEIGHTS = (200.0, 400.0, 800.0)
+N_BOOT = 200
 
 cfg = load_config("config")
 m = cfg["geometry"]["magnet"]
 Z_START, Z_LENGTH, X_HALF_GAP = m["z_start"], m["z_length"], m["x_half_gap"]
 Z_END = Z_START + Z_LENGTH
-
 geometry = make_geometry(cfg["geometry"])
-detectors = make_detector_planes(geometry, cfg["geometry"]["detector_planes"])
-planes = plane_list(detectors) if detectors is not None else []
-z_end_system = float(geometry.z_end_system)
 field = build_field(cfg, geometry)
-
-beams = cfg["beams"]
-name = args.beam or next(iter(beams))
-b = beams[name]
-print(f"beams in the config: {list(beams)}; using '{name}': {b}")
-particle = get_constant(b["particle"])
-propagator = make_propagator(cfg, geometry, field, particle)
-
-# ---- sample the beam --------------------------------------------------------------------------
-rng = np.random.default_rng(args.seed)
-n = args.n
-x0 = rng.normal(b["x0"], b["sigma_x0"], n)
-tx0 = np.tan(rng.normal(b["theta0"], b["sigma_theta0"], n))
-p0 = rng.normal(b["p0"], b["sigma_p0"], n)
-q_p0 = particle.charge / p0
-print(f"sampled: <x0> = {x0.mean():.3f} mm, <tx0> = {tx0.mean():.2e}, <p0> = {p0.mean():.1f} MeV "
-      f"-> T = {kinetic_energy(q_p0.mean(), particle):.1f} MeV (check the units of p0)")
-
-# ---- propagate --------------------------------------------------------------------------------
 z_magnet = np.linspace(Z_START, Z_END, N_MAGNET_POINTS)
-z_out = np.unique(np.concatenate(([z for _, z in planes], z_magnet, [z_end_system])))
-x_out = np.full((n, len(z_out)), np.nan)
-kick_rng = np.random.default_rng(args.seed + 1) if propagator.max_slice is not None else None
-n_stopped = 0
-for i in range(n):
-    res = propagator.propagate(State(Z0, x0[i], tx0[i], q_p0[i]), z_end_system,
-                               z_out=list(z_out), rng=kick_rng)
-    if res.stopped:
-        n_stopped += 1
+
+geoms = [("config", m["y_height"], m["biot_savart"]["n_filaments"])]
+geoms += [(f"y_height = {y:g}", y, 2 * int(round(y / (2 * SCAN_PITCH)))) for y in HEIGHTS]
+fields = {label: BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, y, n) for label, y, n in geoms}
+i_axis = {label: np.trapezoid(f.By(0.0, z_magnet), z_magnet) for label, f in fields.items()}
+
+print(f"magnet z in [{Z_START:.0f}, {Z_END:.0f}] mm, x_half_gap = {X_HALF_GAP} mm, "
+      f"{args.n} tracks per beam, seed = {args.seed}")
+
+for name in (args.beams or list(cfg["beams"])):
+    b = cfg["beams"][name]
+    particle = get_constant(b["particle"])
+    propagator = make_propagator(cfg, geometry, field, particle)
+
+    df_beam = make_beam(b).generate(args.n, seed=args.seed)
+    x0 = df_beam["x0"].to_numpy()
+    tx0 = (df_beam["px0"] / df_beam["pz0"]).to_numpy()
+    q_p0 = particle.charge / np.hypot(df_beam["px0"], df_beam["pz0"]).to_numpy()
+    kick_rng = np.random.default_rng(args.seed + 1) if propagator.max_slice is not None else None
+
+    x_path, n_stopped = [], 0
+    for i in range(args.n):
+        res = propagator.propagate(State(0.0, x0[i], tx0[i], q_p0[i]), Z_END,
+                                   z_out=list(z_magnet), rng=kick_rng)
+        row = [s.x if s is not None else np.nan for s in res.at_z_out]
+        if res.stopped or np.isnan(row).any():
+            n_stopped += 1
+            continue
+        x_path.append(row)
+    x_path = np.array(x_path)
+
+    T = kinetic_energy(particle.charge / b["p0"], particle)
+    print(f"\n=========== beam '{name}': {particle.name}, p0 = {b['p0']} MeV (T = {T:.1f} MeV), "
+          f"stopped before the magnet end: {n_stopped}/{args.n} ===========")
+    if len(x_path) == 0:
         continue
-    for j, s in enumerate(res.at_z_out):
-        if s is not None:
-            x_out[i, j] = s.x
-    if (i + 1) % 100 == 0:
-        print(f"  {i + 1}/{n} tracks", flush=True)
-print(f"stopped in the phantom: {n_stopped}/{n}")
 
-# ---- part 1: x of the protons -----------------------------------------------------------------
-in_magnet = (z_out >= Z_START - 1e-6) & (z_out <= Z_END + 1e-6)
-xm = x_out[:, in_magnet]
-ok = ~np.isnan(xm).any(axis=1)
-max_abs = np.abs(xm[ok]).max(axis=1)
-print(f"\n=== max |x| inside the magnet (z in [{Z_START:.0f}, {Z_END:.0f}] mm), "
-      f"{ok.sum()} tracks ===")
-for q in (50, 90, 99, 99.9, 100):
-    print(f"  percentile {q:>5}: {np.percentile(max_abs, q):8.2f} mm")
-print(f"  fraction with max|x| > 25 mm:  {np.mean(max_abs > 25.0):.4f}")
-print(f"  fraction with max|x| > x_half_gap = {X_HALF_GAP}: {np.mean(max_abs > X_HALF_GAP):.4f}"
-      "   (there the propagator sets the field to zero)")
+    max_abs = np.abs(x_path).max(axis=1)
+    p99 = np.percentile(max_abs, 99)
+    boot = [np.percentile(np.random.default_rng(k).choice(max_abs, len(max_abs)), 99)
+            for k in range(N_BOOT)]
+    print(f"max|x| in the magnet [mm]: median {np.median(max_abs):.1f}, p90 {np.percentile(max_abs, 90):.1f}, "
+          f"p99 {p99:.1f} (90% interval {np.percentile(boot, 5):.1f}-{np.percentile(boot, 95):.1f}), "
+          f"max {max_abs.max():.1f}")
+    print(f"fraction > 25 mm: {np.mean(max_abs > 25.0):.3f}   "
+          f"fraction > x_half_gap: {np.mean(max_abs > X_HALF_GAP):.4f}   "
+          f"<x> at the exit: {x_path[:, -1].mean():+.1f} mm (std {x_path[:, -1].std():.1f})")
 
-j_exit = int(np.argmin(np.abs(z_out - Z_END)))
-x_exit = x_out[ok, j_exit]
-print(f"  x at the magnet exit: mean = {x_exit.mean():+.2f} mm, std = {x_exit.std():.2f} mm "
-      "(sign: compare with the PDF, +7 cm at the last plane)")
-
-after = (z_out > Z_END + 1e-6) & ~np.isnan(x_out).all(axis=0)
-if after.any():
-    far = np.abs(x_out[:, after]).max(axis=1)
-    print(f"  after the magnet: max |x| = {np.nanmax(far):.1f} mm, "
-          f"fraction beyond x_half_gap = {np.nanmean(far > X_HALF_GAP):.4f}")
-
-if planes:
-    print(f"\n{'plane':>10} {'z [mm]':>8} {'<x> [mm]':>9} {'std x':>8} {'max|x|':>8}")
-    for pname, z in planes:
-        col = x_out[:, int(np.argmin(np.abs(z_out - z)))]
-        col = col[~np.isnan(col)]
-        if len(col):
-            print(f"{pname:>10} {z:8.1f} {col.mean():9.2f} {col.std():8.2f} {np.abs(col).max():8.2f}")
-
-# ---- part 2: bending integral vs x, for several plate heights ---------------------------------
-x_eval = sorted({10.0, 25.0, round(float(np.percentile(max_abs, 99)), 1),
-                 round(float(np.percentile(max_abs, 99.9)), 1)})
-z_int = np.arange(Z_START - 2400.0, Z_END + 2400.0 + 0.5, 1.0)
-configs = [("config", m["y_height"], m["biot_savart"]["n_filaments"])]
-configs += [(f"y_height = {y:g}", y, 2 * int(round(y / (2 * SCAN_PITCH)))) for y in HEIGHTS]
-
-print("\n=== I(x)/I(0) - 1  [%], I = int By dz at constant x (an estimate: the real path bends) ===")
-print(f"{'geometry':>18} {'n_fil':>6} " + " ".join(f"{'x=' + format(x, 'g'):>9}" for x in x_eval))
-for label, y_height, n_fil in configs:
-    f = BiotSavartField(1.0, Z_START, Z_LENGTH, X_HALF_GAP, y_height, n_fil)
-    i0 = np.trapezoid(f.By(0.0, z_int), z_int)
-    row = [100.0 * (np.trapezoid(f.By(x, z_int), z_int) / i0 - 1.0) for x in x_eval]
-    print(f"{label:>18} {n_fil:6d} " + " ".join(f"{v:9.3f}" for v in row))
+    print(f"{'bending integral along the path / axis - 1 [%]':>48}  mean     std   |99th pct|")
+    for label, f in fields.items():
+        by = np.where(np.abs(x_path) <= X_HALF_GAP, f.By(x_path, z_magnet[None, :]), 0.0)
+        delta = 100.0 * (np.trapezoid(by, z_magnet, axis=1) / i_axis[label] - 1.0)
+        print(f"{label:>48} {delta.mean():7.3f} {delta.std():7.3f} {np.percentile(np.abs(delta), 99):9.3f}")
